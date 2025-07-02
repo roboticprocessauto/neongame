@@ -291,7 +291,7 @@
                 this.collectibles = [];
                 this.powerUps = [];
                 
-                this.gameSpeed = 0.5;
+                this.gameSpeed = 0.4;
                 this.playerLane = 1;
                 this.isJumping = false;
                 this.jumpHeight = 0;
@@ -705,7 +705,7 @@
                 
                 // Speed increase
                 const speedMultiplier = this.activePowerUp === 'speed' ? 2 : 1;
-                this.gameSpeed += 0.002 * speedMultiplier;
+                this.gameSpeed += 0.001 * speedMultiplier;
                 this.distance += this.gameSpeed;
                 
                 // Power-up timer
