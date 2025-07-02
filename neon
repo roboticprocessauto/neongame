@@ -1,0 +1,619 @@
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import * as THREE from 'three';
+
+const NeonDriftGame = () => {
+  const mountRef = useRef(null);
+  const gameRef = useRef({
+    scene: null,
+    camera: null,
+    renderer: null,
+    player: null,
+    obstacles: [],
+    collectibles: [],
+    gameSpeed: 0.1,
+    playerLane: 1, // 0, 1, 2 (left, center, right)
+    isJumping: false,
+    jumpHeight: 0,
+    jumpVelocity: 0,
+    score: 0,
+    distance: 0,
+    gameRunning: false,
+    spawnTimer: 0,
+    keys: {},
+    lastTime: 0
+  });
+
+  const [gameState, setGameState] = useState({
+    score: 0,
+    distance: 0,
+    speed: 1.0,
+    gameStarted: false,
+    gameOver: false,
+    paused: false,
+    showMenu: true,
+    showLeaderboard: false,
+    playerName: '',
+    nameEntered: false
+  });
+
+  const [leaderboard, setLeaderboard] = useState([]);
+
+  // Load leaderboard from localStorage
+  useEffect(() => {
+    const savedLeaderboard = localStorage.getItem('neonDriftLeaderboard');
+    if (savedLeaderboard) {
+      setLeaderboard(JSON.parse(savedLeaderboard));
+    }
+  }, []);
+
+  // Save score to leaderboard
+  const saveScore = (name, score, distance) => {
+    const newLeaderboard = [...leaderboard];
+    const existingPlayerIndex = newLeaderboard.findIndex(player => player.name === name);
+    
+    if (existingPlayerIndex !== -1) {
+      // Update existing player if new score is higher
+      if (score > newLeaderboard[existingPlayerIndex].score) {
+        newLeaderboard[existingPlayerIndex] = { name, score, distance, date: new Date().toLocaleDateString() };
+      }
+    } else {
+      // Add new player
+      newLeaderboard.push({ name, score, distance, date: new Date().toLocaleDateString() });
+    }
+    
+    // Sort by score descending and keep top 10
+    newLeaderboard.sort((a, b) => b.score - a.score);
+    const topLeaderboard = newLeaderboard.slice(0, 10);
+    
+    setLeaderboard(topLeaderboard);
+    localStorage.setItem('neonDriftLeaderboard', JSON.stringify(topLeaderboard));
+  };
+
+  // Initialize Three.js scene
+  const initThreeJS = useCallback(() => {
+    const game = gameRef.current;
+    
+    // Scene setup
+    game.scene = new THREE.Scene();
+    game.scene.fog = new THREE.Fog(0x000000, 50, 200);
+    
+    // Camera setup
+    game.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    game.camera.position.set(0, 8, 12);
+    game.camera.lookAt(0, 0, 0);
+    
+    // Renderer setup
+    game.renderer = new THREE.WebGLRenderer({ antialias: true });
+    game.renderer.setSize(window.innerWidth, window.innerHeight);
+    game.renderer.setClearColor(0x000000);
+    game.renderer.shadowMap.enabled = true;
+    game.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    
+    if (mountRef.current) {
+      mountRef.current.appendChild(game.renderer.domElement);
+    }
+    
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.2);
+    game.scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0x8A2BE2, 1);
+    directionalLight.position.set(10, 10, 5);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    game.scene.add(directionalLight);
+    
+    // Create player sphere
+    const playerGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+    const playerMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x8A2BE2,
+      emissive: 0x4B0082,
+      shininess: 100
+    });
+    game.player = new THREE.Mesh(playerGeometry, playerMaterial);
+    game.player.position.set(0, 1, 8);
+    game.player.castShadow = true;
+    game.scene.add(game.player);
+    
+    // Create track
+    createTrack();
+    
+    // Add particle system for atmosphere
+    createParticles();
+    
+  }, []);
+
+  const createTrack = () => {
+    const game = gameRef.current;
+    
+    // Track lanes
+    for (let i = 0; i < 3; i++) {
+      const laneGeometry = new THREE.PlaneGeometry(2, 200);
+      const laneMaterial = new THREE.MeshLambertMaterial({ 
+        color: 0x1a1a2e,
+        transparent: true,
+        opacity: 0.8 
+      });
+      const lane = new THREE.Mesh(laneGeometry, laneMaterial);
+      lane.rotation.x = -Math.PI / 2;
+      lane.position.set((i - 1) * 3, 0, -90);
+      lane.receiveShadow = true;
+      game.scene.add(lane);
+      
+      // Lane borders with neon effect
+      const borderGeometry = new THREE.BoxGeometry(0.1, 0.2, 200);
+      const borderMaterial = new THREE.MeshLambertMaterial({ 
+        color: 0x00FFFF,
+        emissive: 0x005555 
+      });
+      
+      const leftBorder = new THREE.Mesh(borderGeometry, borderMaterial);
+      leftBorder.position.set((i - 1) * 3 - 1, 0.1, -90);
+      game.scene.add(leftBorder);
+      
+      const rightBorder = new THREE.Mesh(borderGeometry, borderMaterial);
+      rightBorder.position.set((i - 1) * 3 + 1, 0.1, -90);
+      game.scene.add(rightBorder);
+    }
+  };
+
+  const createParticles = () => {
+    const game = gameRef.current;
+    const particleCount = 1000;
+    const particles = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    
+    for (let i = 0; i < particleCount; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 100;
+      positions[i * 3 + 1] = Math.random() * 50;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 200;
+    }
+    
+    particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0xFF1493,
+      size: 0.1,
+      transparent: true,
+      opacity: 0.8
+    });
+    
+    const particleSystem = new THREE.Points(particles, particleMaterial);
+    game.scene.add(particleSystem);
+  };
+
+  const createObstacle = (lane, distance) => {
+    const game = gameRef.current;
+    const obstacleGeometry = new THREE.BoxGeometry(1.5, 2, 1);
+    const obstacleMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0xFF0080,
+      emissive: 0x330033 
+    });
+    const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+    obstacle.position.set((lane - 1) * 3, 1, -distance);
+    obstacle.castShadow = true;
+    game.scene.add(obstacle);
+    game.obstacles.push({ mesh: obstacle, lane });
+  };
+
+  const createCollectible = (lane, distance) => {
+    const game = gameRef.current;
+    const collectibleGeometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+    const collectibleMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x00FF00,
+      emissive: 0x004400 
+    });
+    const collectible = new THREE.Mesh(collectibleGeometry, collectibleMaterial);
+    collectible.position.set((lane - 1) * 3, 1, -distance);
+    collectible.castShadow = true;
+    game.scene.add(collectible);
+    game.collectibles.push({ mesh: collectible, lane });
+  };
+
+  const handleKeyDown = useCallback((event) => {
+    const game = gameRef.current;
+    game.keys[event.code] = true;
+    
+    if (event.code === 'Escape') {
+      event.preventDefault();
+      if (game.gameRunning) {
+        // Pause game and show menu
+        game.gameRunning = false;
+        setGameState(prev => ({ 
+          ...prev, 
+          paused: true, 
+          showMenu: true,
+          gameStarted: false 
+        }));
+      }
+      return;
+    }
+    
+    if (event.code === 'Space') {
+      event.preventDefault();
+      if (!game.isJumping && game.gameRunning) {
+        game.isJumping = true;
+        game.jumpVelocity = 0.3;
+      }
+    }
+    
+    if (event.code === 'ArrowLeft' && game.playerLane > 0 && game.gameRunning) {
+      game.playerLane--;
+    }
+    if (event.code === 'ArrowRight' && game.playerLane < 2 && game.gameRunning) {
+      game.playerLane++;
+    }
+  }, []);
+
+  const handleKeyUp = useCallback((event) => {
+    const game = gameRef.current;
+    game.keys[event.code] = false;
+  }, []);
+
+  const checkCollisions = () => {
+    const game = gameRef.current;
+    const playerBoundingBox = new THREE.Box3().setFromObject(game.player);
+    
+    // Check obstacle collisions
+    game.obstacles.forEach((obstacle, index) => {
+      if (obstacle.lane === game.playerLane) {
+        const obstacleBoundingBox = new THREE.Box3().setFromObject(obstacle.mesh);
+        if (playerBoundingBox.intersectsBox(obstacleBoundingBox) && !game.isJumping) {
+          // Game over - save score
+          game.gameRunning = false;
+          if (gameState.playerName) {
+            saveScore(gameState.playerName, game.score, Math.floor(game.distance));
+          }
+          setGameState(prev => ({ ...prev, gameOver: true, gameStarted: false }));
+        }
+      }
+    });
+    
+    // Check collectible collisions
+    game.collectibles.forEach((collectible, index) => {
+      if (collectible.lane === game.playerLane) {
+        const collectibleBoundingBox = new THREE.Box3().setFromObject(collectible.mesh);
+        if (playerBoundingBox.intersectsBox(collectibleBoundingBox)) {
+          // Collect item
+          game.scene.remove(collectible.mesh);
+          game.collectibles.splice(index, 1);
+          game.score += 10;
+          setGameState(prev => ({ ...prev, score: game.score }));
+        }
+      }
+    });
+  };
+
+  const gameLoop = useCallback((currentTime) => {
+    const game = gameRef.current;
+    if (!game.gameRunning) return;
+    
+    const deltaTime = currentTime - game.lastTime;
+    game.lastTime = currentTime;
+    
+    // Update player position
+    game.player.position.x = THREE.MathUtils.lerp(game.player.position.x, (game.playerLane - 1) * 3, 0.1);
+    
+    // Handle jumping
+    if (game.isJumping) {
+      game.jumpHeight += game.jumpVelocity;
+      game.jumpVelocity -= 0.02; // gravity
+      game.player.position.y = 1 + game.jumpHeight;
+      
+      if (game.jumpHeight <= 0) {
+        game.isJumping = false;
+        game.jumpHeight = 0;
+        game.player.position.y = 1;
+      }
+    }
+    
+    // Update game speed
+    game.gameSpeed += 0.0001;
+    game.distance += game.gameSpeed;
+    
+    // Move obstacles and collectibles
+    game.obstacles.forEach((obstacle, index) => {
+      obstacle.mesh.position.z += game.gameSpeed * 2;
+      if (obstacle.mesh.position.z > 15) {
+        game.scene.remove(obstacle.mesh);
+        game.obstacles.splice(index, 1);
+      }
+    });
+    
+    game.collectibles.forEach((collectible, index) => {
+      collectible.mesh.position.z += game.gameSpeed * 2;
+      collectible.mesh.rotation.y += 0.1;
+      if (collectible.mesh.position.z > 15) {
+        game.scene.remove(collectible.mesh);
+        game.collectibles.splice(index, 1);
+      }
+    });
+    
+    // Spawn new obstacles and collectibles
+    game.spawnTimer += deltaTime;
+    if (game.spawnTimer > 1000) { // spawn every second
+      game.spawnTimer = 0;
+      
+      // Spawn obstacle
+      if (Math.random() < 0.7) {
+        const lane = Math.floor(Math.random() * 3);
+        createObstacle(lane, 50);
+      }
+      
+      // Spawn collectible
+      if (Math.random() < 0.5) {
+        const lane = Math.floor(Math.random() * 3);
+        createCollectible(lane, 60);
+      }
+    }
+    
+    // Check collisions
+    checkCollisions();
+    
+    // Update UI
+    setGameState(prev => ({
+      ...prev,
+      distance: Math.floor(game.distance),
+      speed: (game.gameSpeed * 20).toFixed(1)
+    }));
+    
+    // Render
+    game.renderer.render(game.scene, game.camera);
+    
+    if (game.gameRunning) {
+      requestAnimationFrame(gameLoop);
+    }
+  }, []);
+
+  const startGame = () => {
+    if (!gameState.nameEntered) return;
+    
+    const game = gameRef.current;
+    game.gameRunning = true;
+    game.gameSpeed = 0.1;
+    game.score = 0;
+    game.distance = 0;
+    game.playerLane = 1;
+    game.player.position.set(0, 1, 8);
+    
+    // Clear obstacles and collectibles
+    game.obstacles.forEach(obstacle => game.scene.remove(obstacle.mesh));
+    game.collectibles.forEach(collectible => game.scene.remove(collectible.mesh));
+    game.obstacles = [];
+    game.collectibles = [];
+    
+    setGameState(prev => ({
+      ...prev,
+      score: 0,
+      distance: 0,
+      speed: 1.0,
+      gameStarted: true,
+      gameOver: false,
+      showMenu: false,
+      paused: false
+    }));
+    
+    game.lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+  };
+
+  const restartGame = () => {
+    setGameState(prev => ({
+      ...prev,
+      gameOver: false,
+      showMenu: true,
+      gameStarted: false
+    }));
+  };
+
+  const showLeaderboardScreen = () => {
+    setGameState(prev => ({
+      ...prev,
+      showLeaderboard: true,
+      showMenu: false
+    }));
+  };
+
+  const backToMenu = () => {
+    setGameState(prev => ({
+      ...prev,
+      showLeaderboard: false,
+      showMenu: true,
+      gameOver: false,
+      gameStarted: false,
+      paused: false
+    }));
+  };
+
+  const handleNameSubmit = (e) => {
+    e.preventDefault();
+    if (gameState.playerName.trim()) {
+      setGameState(prev => ({ ...prev, nameEntered: true }));
+    }
+  };
+
+  useEffect(() => {
+    initThreeJS();
+    
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    const handleResize = () => {
+      const game = gameRef.current;
+      if (game.camera && game.renderer) {
+        game.camera.aspect = window.innerWidth / window.innerHeight;
+        game.camera.updateProjectionMatrix();
+        game.renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('resize', handleResize);
+      
+      if (mountRef.current && gameRef.current.renderer) {
+        mountRef.current.removeChild(gameRef.current.renderer.domElement);
+      }
+    };
+  }, [initThreeJS, handleKeyDown, handleKeyUp, gameLoop]);
+
+  return (
+    <div className="relative w-full h-screen bg-black overflow-hidden">
+      <div ref={mountRef} className="w-full h-full" />
+      
+      {/* UI Overlay - только во время игры */}
+      {gameState.gameStarted && !gameState.paused && (
+        <div className="absolute top-4 left-4 text-white font-mono">
+          <div className="bg-black bg-opacity-50 p-4 rounded-lg border border-purple-500">
+            <div className="text-purple-400 text-lg">NEON DRIFT: SPHERE RUN</div>
+            <div className="text-yellow-400">Player: {gameState.playerName}</div>
+            <div className="text-green-400">Score: {gameState.score}</div>
+            <div className="text-blue-400">Distance: {gameState.distance}m</div>
+            <div className="text-pink-400">Speed: {gameState.speed}x</div>
+          </div>
+        </div>
+      )}
+      
+      {/* Controls - только во время игры */}
+      {gameState.gameStarted && !gameState.paused && (
+        <div className="absolute bottom-4 left-4 text-white font-mono">
+          <div className="bg-black bg-opacity-50 p-4 rounded-lg border border-cyan-500">
+            <div className="text-cyan-400 text-sm">CONTROLS:</div>
+            <div className="text-xs">← → Arrow Keys: Move</div>
+            <div className="text-xs">SPACE: Jump</div>
+            <div className="text-xs">ESC: Menu</div>
+          </div>
+        </div>
+      )}
+      
+      {/* Main Menu / Name Input / Game Over / Leaderboard */}
+      {(gameState.showMenu || gameState.gameOver || gameState.showLeaderboard || !gameState.nameEntered) && (
+        <div className="absolute inset-0 bg-black bg-opacity-90 flex items-center justify-center">
+          <div className="text-center text-white font-mono max-w-lg">
+            
+            {/* Main Title */}
+            <h1 className="text-6xl font-bold text-purple-400 mb-4 animate-pulse">
+              NEON DRIFT
+            </h1>
+            <h2 className="text-3xl text-cyan-400 mb-8">SPHERE RUN</h2>
+            
+            {/* Name Input Screen */}
+            {!gameState.nameEntered && (
+              <div>
+                <div className="text-xl text-yellow-400 mb-4">Введите ваш никнейм:</div>
+                <form onSubmit={handleNameSubmit} className="mb-6">
+                  <input
+                    type="text"
+                    value={gameState.playerName}
+                    onChange={(e) => setGameState(prev => ({ ...prev, playerName: e.target.value }))}
+                    className="bg-gray-800 border border-purple-500 rounded px-4 py-2 text-white text-center text-xl mb-4 w-64"
+                    placeholder="Ваш никнейм"
+                    maxLength="15"
+                    autoFocus
+                  />
+                  <br />
+                  <button
+                    type="submit"
+                    disabled={!gameState.playerName.trim()}
+                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white font-bold py-2 px-6 rounded transition-colors"
+                  >
+                    ПОДТВЕРДИТЬ
+                  </button>
+                </form>
+              </div>
+            )}
+            
+            {/* Main Menu */}
+            {gameState.nameEntered && gameState.showMenu && !gameState.gameOver && (
+              <div>
+                <div className="text-green-400 text-lg mb-6">Привет, {gameState.playerName}!</div>
+                <button
+                  onClick={startGame}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition-colors border-2 border-purple-400 hover:border-purple-300 mb-4 block mx-auto"
+                >
+                  НАЧАТЬ ИГРУ
+                </button>
+                <button
+                  onClick={showLeaderboardScreen}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors mb-4 block mx-auto"
+                >
+                  РЕЙТИНГ ИГРОКОВ
+                </button>
+                <button
+                  onClick={() => setGameState(prev => ({ ...prev, nameEntered: false, playerName: '' }))}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded transition-colors block mx-auto"
+                >
+                  СМЕНИТЬ НИК
+                </button>
+              </div>
+            )}
+            
+            {/* Game Over Screen */}
+            {gameState.gameOver && (
+              <div>
+                <div className="text-red-400 text-3xl mb-4">GAME OVER</div>
+                <div className="text-green-400 text-xl mb-2">Игрок: {gameState.playerName}</div>
+                <div className="text-green-400 text-xl mb-2">Очки: {gameState.score}</div>
+                <div className="text-blue-400 text-lg mb-6">Дистанция: {gameState.distance}m</div>
+                
+                <button
+                  onClick={startGame}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition-colors border-2 border-purple-400 hover:border-purple-300 mb-4 block mx-auto"
+                >
+                  ИГРАТЬ СНОВА
+                </button>
+                <button
+                  onClick={backToMenu}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded transition-colors block mx-auto"
+                >
+                  В МЕНЮ
+                </button>
+              </div>
+            )}
+            
+            {/* Leaderboard Screen */}
+            {gameState.showLeaderboard && (
+              <div>
+                <div className="text-yellow-400 text-2xl mb-6">🏆 РЕЙТИНГ ИГРОКОВ</div>
+                <div className="bg-black bg-opacity-50 p-4 rounded-lg border border-yellow-500 mb-6 max-h-64 overflow-y-auto">
+                  {leaderboard.length === 0 ? (
+                    <div className="text-gray-400">Рекордов пока нет</div>
+                  ) : (
+                    leaderboard.map((player, index) => (
+                      <div key={index} className="flex justify-between items-center py-1 border-b border-gray-700 last:border-b-0">
+                        <span className="text-yellow-400">#{index + 1}</span>
+                        <span className="text-white flex-1 mx-4 text-left">{player.name}</span>
+                        <span className="text-green-400">{player.score}</span>
+                        <span className="text-blue-400 ml-2 text-sm">{player.distance}m</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button
+                  onClick={backToMenu}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded transition-colors"
+                >
+                  НАЗАД
+                </button>
+              </div>
+            )}
+            
+            {/* Lore */}
+            {(gameState.showMenu || !gameState.nameEntered) && (
+              <div className="mt-8 text-sm text-gray-400">
+                <p>В цифровом мегаполисе NOVA</p>
+                <p>Только лучшие выживают в глитч-системе</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NeonDriftGame;
