@@ -151,6 +151,30 @@
 
     <!-- Подключение скриптов -->
     <script src="firebase-config.js"></script>
-    <script src="app.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set, get, push, update, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+        
+        // Инициализация Firebase
+        const app = initializeApp(window.firebaseConfig);
+        const database = getDatabase(app);
+        
+        // Делаем доступными глобально
+        window.database = database;
+        window.dbRef = ref;
+        window.dbSet = set;
+        window.dbGet = get;
+        window.dbPush = push;
+        window.dbUpdate = update;
+        window.dbOnValue = onValue;
+        window.dbRemove = remove;
+        
+        // Загружаем основной скрипт после инициализации Firebase
+        const script = document.createElement('script');
+        script.src = 'app.js';
+        document.head.appendChild(script);
+    </script>
 </body>
 </html>
