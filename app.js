@@ -1,11 +1,3 @@
-// ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, set, get, push, update, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-// Инициализация Firebase
-const app = initializeApp(window.firebaseConfig);
-const database = getDatabase(app);
-
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
 let events = {};
@@ -24,8 +16,8 @@ window.login = async function() {
     }
 
     try {
-        const userRef = ref(database, `users/${username}`);
-        const snapshot = await get(userRef);
+        const userRef = window.dbRef(window.database, `users/${username}`);
+        const snapshot = await window.dbGet(userRef);
         
         if (snapshot.exists()) {
             const userData = snapshot.val();
@@ -64,8 +56,8 @@ window.register = async function() {
     }
 
     try {
-        const userRef = ref(database, `users/${username}`);
-        const snapshot = await get(userRef);
+        const userRef = window.dbRef(window.database, `users/${username}`);
+        const snapshot = await window.dbGet(userRef);
         
         if (snapshot.exists()) {
             alert('Пользователь уже существует');
@@ -79,7 +71,7 @@ window.register = async function() {
             registeredAt: Date.now()
         };
 
-        await set(userRef, newUser);
+        await window.dbSet(userRef, newUser);
         alert('Регистрация успешна!');
         
         document.getElementById('username').value = username;
@@ -154,8 +146,8 @@ window.selectCategory = function(category) {
 
 async function loadEvents() {
     try {
-        const eventsRef = ref(database, 'events');
-        const snapshot = await get(eventsRef);
+        const eventsRef = window.dbRef(window.database, 'events');
+        const snapshot = await window.dbGet(eventsRef);
         
         if (snapshot.exists()) {
             events = snapshot.val();
@@ -291,7 +283,7 @@ function updateBetSlip() {
             
             <input type="number" class="stake-input" id="stakeAmount" 
                    placeholder="Сумма ставки" min="1" max="${settings.maxBetAmount}"
-                   onInput="updatePotentialPayout()">
+                   oninput="updatePotentialPayout()">
             
             <div class="potential-payout">
                 <strong>Общий коэффициент: ${totalCoefficient.toFixed(2)}</strong><br>
@@ -427,12 +419,12 @@ window.placeBet = async function() {
         };
 
         // Добавить ставку
-        const betsRef = ref(database, 'bets');
-        await push(betsRef, bet);
+        const betsRef = window.dbRef(window.database, 'bets');
+        await window.dbPush(betsRef, bet);
 
         // Обновить баланс
         const newBalance = currentUser.balance - stake;
-        await update(ref(database, `users/${currentUser.username}`), { balance: newBalance });
+        await window.dbUpdate(window.dbRef(window.database, `users/${currentUser.username}`), { balance: newBalance });
         currentUser.balance = newBalance;
 
         updateUserInfo();
@@ -487,8 +479,8 @@ window.addEvent = async function() {
             timestamp: Date.now()
         };
 
-        const eventsRef = ref(database, 'events');
-        await push(eventsRef, newEvent);
+        const eventsRef = window.dbRef(window.database, 'events');
+        await window.dbPush(eventsRef, newEvent);
 
         // Очистить форму
         document.getElementById('eventTitle').value = '';
@@ -507,8 +499,8 @@ window.addEvent = async function() {
 
 async function loadAdminEvents() {
     try {
-        const eventsRef = ref(database, 'events');
-        const snapshot = await get(eventsRef);
+        const eventsRef = window.dbRef(window.database, 'events');
+        const snapshot = await window.dbGet(eventsRef);
         
         if (snapshot.exists()) {
             events = snapshot.val();
@@ -572,8 +564,8 @@ function getCategoryName(category) {
 // ===== ФУНКЦИИ ДЛЯ РАБОТЫ С НЕЗАВЕРШЕННЫМИ СОБЫТИЯМИ =====
 window.loadUnfinishedEvents = async function() {
     try {
-        const eventsRef = ref(database, 'events');
-        const snapshot = await get(eventsRef);
+        const eventsRef = window.dbRef(window.database, 'events');
+        const snapshot = await window.dbGet(eventsRef);
         
         if (snapshot.exists()) {
             const allEvents = snapshot.val();
@@ -602,8 +594,8 @@ window.loadUnfinishedEvents = async function() {
 
 window.fixEventsCategories = async function() {
     try {
-        const eventsRef = ref(database, 'events');
-        const snapshot = await get(eventsRef);
+        const eventsRef = window.dbRef(window.database, 'events');
+        const snapshot = await window.dbGet(eventsRef);
         
         if (snapshot.exists()) {
             const allEvents = snapshot.val();
@@ -625,7 +617,7 @@ window.fixEventsCategories = async function() {
             }
             
             if (fixedCount > 0) {
-                await update(ref(database), updates);
+                await window.dbUpdate(window.dbRef(window.database), updates);
                 await loadEvents();
                 loadAdminEvents();
                 alert(`Исправлено ${fixedCount} событий. Им присвоена категория "Общество".`);
@@ -648,15 +640,15 @@ window.finishEvent = async function(eventId, winningOptionIndex) {
 
     try {
         // Обновить статус события
-        await update(ref(database, `events/${eventId}`), { 
+        await window.dbUpdate(window.dbRef(window.database, `events/${eventId}`), { 
             status: 'finished',
             result: parseInt(winningOptionIndex),
             finishedAt: Date.now()
         });
 
         // Обработать ставки
-        const betsRef = ref(database, 'bets');
-        const betsSnapshot = await get(betsRef);
+        const betsRef = window.dbRef(window.database, 'bets');
+        const betsSnapshot = await window.dbGet(betsRef);
         
         if (betsSnapshot.exists()) {
             const allBets = betsSnapshot.val();
@@ -723,16 +715,16 @@ window.finishEvent = async function(eventId, winningOptionIndex) {
             
             // Применить обновления ставок
             if (Object.keys(updates).length > 0) {
-                await update(ref(database), updates);
+                await window.dbUpdate(window.dbRef(window.database), updates);
             }
             
             // Обновить балансы
             for (const [username, winAmount] of Object.entries(balanceUpdates)) {
-                const userRef = ref(database, `users/${username}`);
-                const userSnapshot = await get(userRef);
+                const userRef = window.dbRef(window.database, `users/${username}`);
+                const userSnapshot = await window.dbGet(userRef);
                 if (userSnapshot.exists()) {
                     const userData = userSnapshot.val();
-                    await update(userRef, { 
+                    await window.dbUpdate(userRef, { 
                         balance: userData.balance + winAmount 
                     });
                     
@@ -757,8 +749,8 @@ window.finishEvent = async function(eventId, winningOptionIndex) {
 // ===== НАСТРОЙКИ =====
 async function loadSettings() {
     try {
-        const settingsRef = ref(database, 'settings');
-        const snapshot = await get(settingsRef);
+        const settingsRef = window.dbRef(window.database, 'settings');
+        const snapshot = await window.dbGet(settingsRef);
         
         if (snapshot.exists()) {
             settings = snapshot.val();
@@ -770,13 +762,33 @@ async function loadSettings() {
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('load', async function() {
+    // Ждем инициализации Firebase
+    let attempts = 0;
+    const maxAttempts = 50;
+    
+    const waitForFirebase = () => {
+        if (window.database && window.dbRef && window.dbGet && window.dbSet) {
+            initializeApp();
+        } else if (attempts < maxAttempts) {
+            attempts++;
+            setTimeout(waitForFirebase, 100);
+        } else {
+            console.error('Firebase не инициализирован');
+            alert('Ошибка подключения к базе данных');
+        }
+    };
+    
+    waitForFirebase();
+});
+
+async function initializeApp() {
     try {
         // Инициализация настроек
-        const settingsRef = ref(database, 'settings');
-        const snapshot = await get(settingsRef);
+        const settingsRef = window.dbRef(window.database, 'settings');
+        const snapshot = await window.dbGet(settingsRef);
         
         if (!snapshot.exists()) {
-            await set(settingsRef, settings);
+            await window.dbSet(settingsRef, settings);
         } else {
             settings = snapshot.val();
         }
@@ -786,8 +798,8 @@ window.addEventListener('load', async function() {
         if (savedUser) {
             try {
                 const userData = JSON.parse(savedUser);
-                const userRef = ref(database, `users/${userData.username}`);
-                const userSnapshot = await get(userRef);
+                const userRef = window.dbRef(window.database, `users/${userData.username}`);
+                const userSnapshot = await window.dbGet(userRef);
                 
                 if (userSnapshot.exists()) {
                     currentUser = { username: userData.username, ...userSnapshot.val() };
@@ -800,22 +812,24 @@ window.addEventListener('load', async function() {
                 localStorage.removeItem('currentUser');
             }
         }
+        
+        // Добавляем обработчики событий
+        setupEventHandlers();
     } catch (error) {
         console.error('Ошибка инициализации:', error);
     }
-});
+}
 
-// ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
-// Закрытие модального окна по клику вне его
-window.onclick = function(event) {
-    const modal = document.getElementById('betModal');
-    if (event.target === modal) {
-        closeBetModal();
-    }
-};
+function setupEventHandlers() {
+    // Закрытие модального окна по клику вне его
+    window.onclick = function(event) {
+        const modal = document.getElementById('betModal');
+        if (event.target === modal) {
+            closeBetModal();
+        }
+    };
 
-// Обработка Enter в полях авторизации
-document.addEventListener('DOMContentLoaded', function() {
+    // Обработка Enter в полях авторизации
     const usernameField = document.getElementById('username');
     const passwordField = document.getElementById('password');
     
@@ -828,4 +842,4 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-});
+}
