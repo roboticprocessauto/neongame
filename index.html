@@ -5,8 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MaxBet - Платформа ставок</title>
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Add inline script to handle early interactions -->
+    <script>
+        // Early function definitions to prevent timing issues
+        window.showRegister = function() {
+            const registerForm = document.getElementById('registerForm');
+            if (registerForm) {
+                registerForm.classList.toggle('hidden');
+            }
+        };
+        
+        window.showLogin = function() {
+            const registerForm = document.getElementById('registerForm');
+            if (registerForm) {
+                registerForm.classList.add('hidden');
+            }
+        };
+        
+        // Temporary placeholder functions until app.js loads
+        window.login = function() {
+            alert('Система загружается, пожалуйста подождите...');
+        };
+        
+        window.register = function() {
+            alert('Система загружается, пожалуйста подождите...');
+        };
+        
+        window.logout = function() {
+            location.reload();
+        };
+    </script>
 </head>
 <body>
+    <!-- Loading indicator -->
+    <div id="loadingIndicator" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: flex; align-items: center; justify-content: center; z-index: 9999; font-size: 18px;">
+        <div style="text-align: center;">
+            <div style="margin-bottom: 20px;">🎯 MaxBet</div>
+            <div>Загрузка...</div>
+        </div>
+    </div>
+
     <!-- Форма авторизации -->
     <div id="authForm" class="auth-form">
         <h2 class="auth-title">Вход в MaxBet</h2>
@@ -20,7 +59,7 @@
         </div>
         <button class="btn" onclick="login()" style="width: 100%;">Войти</button>
         <p class="auth-link">
-            Нет аккаунта? <a href="#" onclick="showRegister()">Регистрация</a>
+            Нет аккаунта? <a href="javascript:void(0)" onclick="showRegister()">Регистрация</a>
         </p>
         
         <div id="registerForm" class="hidden register-section">
@@ -33,6 +72,9 @@
                 <input type="password" id="newPassword" placeholder="Придумайте пароль">
             </div>
             <button class="btn" onclick="register()" style="width: 100%;">Зарегистрироваться</button>
+            <p class="auth-link">
+                <a href="javascript:void(0)" onclick="showLogin()">Назад к входу</a>
+            </p>
         </div>
     </div>
 
@@ -174,6 +216,17 @@
         // Загружаем основной скрипт после инициализации Firebase
         const script = document.createElement('script');
         script.src = 'app.js';
+        script.onload = function() {
+            // Hide loading indicator when everything is loaded
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
+            }
+        };
+        script.onerror = function() {
+            console.error('Failed to load app.js');
+            alert('Ошибка загрузки приложения. Проверьте подключение к интернету.');
+        };
         document.head.appendChild(script);
     </script>
 </body>
