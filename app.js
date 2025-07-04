@@ -1,845 +1,736 @@
-// ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-let currentUser = null;
-let events = {};
-let settings = { maxBetAmount: 1000, defaultBalance: 5000 };
-let selectedBets = [];
-let currentCategory = 'politics';
+// ===== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ВКЛАДОЧНОЙ АДМИН ПАНЕЛИ =====
 
-// ===== ФУНКЦИИ АВТОРИЗАЦИИ =====
-window.login = async function() {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
+// Глобальные переменные для админ панели
+let currentAdminTab = 'events';
+let allUsers = {};
+let allBets = {};
+let systemStats = {};
+
+// ===== УПРАВЛЕНИЕ ВКЛАДКАМИ =====
+window.switchAdminTab = function(tabName) {
+    // Скрыть все вкладки
+    document.querySelectorAll('.admin-tab-content').forEach(tab => {
+        tab.classList.add('hidden');
+    });
     
-    if (!username || !password) {
-        alert('Введите логин и пароль');
-        return;
-    }
-
-    try {
-        const userRef = window.dbRef(window.database, `users/${username}`);
-        const snapshot = await window.dbGet(userRef);
-        
-        if (snapshot.exists()) {
-            const userData = snapshot.val();
-            if (userData.password === password) {
-                currentUser = { username, ...userData };
-                showApp();
-            } else {
-                alert('Неверный пароль');
-            }
-        } else {
-            alert('Пользователь не найден');
-        }
-    } catch (error) {
-        console.error('Ошибка входа:', error);
-        alert('Ошибка подключения к базе данных');
+    // Убрать активность с всех кнопок
+    document.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Показать выбранную вкладку
+    const targetTab = document.getElementById(`admin-tab-${tabName}`);
+    const targetButton = document.querySelector(`[onclick="switchAdminTab('${tabName}')"]`);
+    
+    if (targetTab) targetTab.classList.remove('hidden');
+    if (targetButton) targetButton.classList.add('active');
+    
+    currentAdminTab = tabName;
+    
+    // Загрузить данные для вкладки
+    switch(tabName) {
+        case 'users':
+            loadAdminUsers();
+            break;
+        case 'bets':
+            loadAdminBets();
+            break;
+        case 'settings':
+            loadAdminSettings();
+            break;
+        case 'stats':
+            loadAdminStatistics();
+            break;
+        case 'events':
+            loadAdminEvents();
+            break;
     }
 };
 
-window.register = async function() {
-    const username = document.getElementById('newUsername').value.trim();
-    const password = document.getElementById('newPassword').value.trim();
+// ===== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ =====
+window.loadAdminUsers = async function() {
+    try {
+        const tbody = document.getElementById('adminUsersTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">Загрузка пользователей...</td></tr>';
+        
+        const usersRef = window.dbRef(window.database, 'users');
+        const snapshot = await window.dbGet(usersRef);
+        
+        if (snapshot.exists()) {
+            allUsers = snapshot.val();
+            displayAdminUsers();
+        } else {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #b0bec5;">Пользователи не найдены</td></tr>';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки пользователей:', error);
+        const tbody = document.getElementById('adminUsersTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #f44336;">Ошибка загрузки</td></tr>';
+        }
+    }
+};
+
+function displayAdminUsers() {
+    const tbody = document.getElementById('adminUsersTableBody');
+    if (!tbody) return;
     
-    if (!username || !password) {
-        alert('Заполните все поля');
+    tbody.innerHTML = '';
+    
+    Object.entries(allUsers).forEach(([username, user]) => {
+        const row = document.createElement('tr');
+        
+        const roleClass = `role-${user.role}`;
+        const statusClass = user.status === 'active' ? 'status-active' : 'status-inactive';
+        const registeredDate = user.registeredAt ? new Date(user.registeredAt).toLocaleDateString() : 'Неизвестно';
+        const betLimit = user.betLimit || settings.maxBetAmount;
+        
+        row.innerHTML = `
+            <td>${username}</td>
+            <td><span class="${roleClass}">${getRoleName(user.role)}</span></td>
+            <td>${user.balance ? user.balance.toLocaleString() : 0} монет</td>
+            <td>${betLimit.toLocaleString()} монет</td>
+            <td>${registeredDate}</td>
+            <td><span class="${statusClass}">${user.status === 'active' ? 'Активен' : 'Заблокирован'}</span></td>
+            <td>
+                <button class="btn" onclick="editAdminUser('${username}')">Редактировать</button>
+                <button class="btn ${user.status === 'active' ? 'btn-warning' : 'btn-success'}" 
+                        onclick="toggleAdminUserStatus('${username}')">
+                    ${user.status === 'active' ? 'Заблокировать' : 'Разблокировать'}
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function getRoleName(role) {
+    const roles = {
+        'admin': 'Администратор',
+        'moderator': 'Модератор',
+        'user': 'Пользователь'
+    };
+    return roles[role] || 'Пользователь';
+}
+
+window.filterAdminUsers = function() {
+    const roleFilter = document.getElementById('adminUserRoleFilter')?.value || 'all';
+    const searchFilter = document.getElementById('adminUserSearchFilter')?.value.toLowerCase() || '';
+    
+    const tbody = document.getElementById('adminUsersTableBody');
+    if (!tbody) return;
+    
+    const rows = tbody.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+        if (row.cells.length < 7) return; // Пропускаем строки загрузки
+        
+        const username = row.cells[0]?.textContent.toLowerCase() || '';
+        const roleText = row.cells[1]?.textContent.toLowerCase() || '';
+        
+        const matchesRole = roleFilter === 'all' || roleText.includes(getRoleName(roleFilter).toLowerCase());
+        const matchesSearch = searchFilter === '' || username.includes(searchFilter);
+        
+        row.style.display = matchesRole && matchesSearch ? '' : 'none';
+    });
+};
+
+window.showAddAdminUserModal = function() {
+    const modal = document.getElementById('addAdminUserModal');
+    if (modal) modal.style.display = 'block';
+};
+
+window.editAdminUser = function(username) {
+    const user = allUsers[username];
+    if (!user) return;
+    
+    document.getElementById('editAdminUserLogin').value = username;
+    document.getElementById('editAdminUserLoginDisplay').value = username;
+    document.getElementById('editAdminUserRole').value = user.role || 'user';
+    document.getElementById('editAdminUserBalance').value = user.balance || 0;
+    document.getElementById('editAdminUserBetLimit').value = user.betLimit || settings.maxBetAmount;
+    document.getElementById('editAdminUserPassword').value = '';
+    
+    const modal = document.getElementById('editAdminUserModal');
+    if (modal) modal.style.display = 'block';
+};
+
+window.addAdminUser = async function() {
+    const login = document.getElementById('newAdminUserLogin')?.value.trim();
+    const password = document.getElementById('newAdminUserPassword')?.value.trim();
+    const role = document.getElementById('newAdminUserRole')?.value || 'user';
+    const balance = parseInt(document.getElementById('newAdminUserBalance')?.value) || settings.defaultBalance;
+    
+    if (!login || !password) {
+        alert('Заполните все обязательные поля');
         return;
     }
-
-    if (username.length < 3) {
+    
+    if (login.length < 3) {
         alert('Логин должен содержать минимум 3 символа');
         return;
     }
-
+    
     if (password.length < 4) {
         alert('Пароль должен содержать минимум 4 символа');
         return;
     }
-
+    
     try {
-        const userRef = window.dbRef(window.database, `users/${username}`);
+        const userRef = window.dbRef(window.database, `users/${login}`);
         const snapshot = await window.dbGet(userRef);
         
         if (snapshot.exists()) {
-            alert('Пользователь уже существует');
+            alert('Пользователь с таким логином уже существует');
             return;
         }
-
+        
         const newUser = {
             password: password,
-            balance: settings.defaultBalance,
-            role: 'user',
-            registeredAt: Date.now()
+            role: role,
+            balance: balance,
+            betLimit: settings.maxBetAmount,
+            registeredAt: Date.now(),
+            status: 'active'
         };
-
+        
         await window.dbSet(userRef, newUser);
-        alert('Регистрация успешна!');
         
-        document.getElementById('username').value = username;
-        document.getElementById('password').value = password;
-        showLogin();
-    } catch (error) {
-        console.error('Ошибка регистрации:', error);
-        alert('Ошибка создания аккаунта');
-    }
-};
-
-window.logout = function() {
-    currentUser = null;
-    selectedBets = [];
-    localStorage.removeItem('currentUser');
-    document.getElementById('authForm').classList.remove('hidden');
-    document.getElementById('app').classList.add('hidden');
-    document.getElementById('adminPanel').classList.add('hidden');
-    
-    // Очистка полей
-    document.getElementById('username').value = '';
-    document.getElementById('password').value = '';
-    document.getElementById('newUsername').value = '';
-    document.getElementById('newPassword').value = '';
-};
-
-window.showRegister = function() {
-    document.getElementById('registerForm').classList.toggle('hidden');
-};
-
-window.showLogin = function() {
-    document.getElementById('registerForm').classList.add('hidden');
-};
-
-// ===== ОСНОВНЫЕ ФУНКЦИИ ПРИЛОЖЕНИЯ =====
-async function showApp() {
-    document.getElementById('authForm').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    
-    localStorage.setItem('currentUser', JSON.stringify({
-        username: currentUser.username,
-        role: currentUser.role
-    }));
-    
-    updateUserInfo();
-    await loadSettings();
-    await loadEvents();
-    
-    if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
-        document.getElementById('adminPanel').classList.remove('hidden');
-        loadAdminEvents();
-    }
-}
-
-function updateUserInfo() {
-    document.getElementById('userBalance').textContent = currentUser.balance;
-    const roleText = currentUser.role === 'admin' ? 'Администратор' :
-                    currentUser.role === 'moderator' ? 'Модератор' : 'Пользователь';
-    document.getElementById('userRole').textContent = roleText;
-}
-
-// ===== КАТЕГОРИИ И СОБЫТИЯ =====
-window.selectCategory = function(category) {
-    currentCategory = category;
-    
-    // Обновить активную категорию
-    document.querySelectorAll('.category').forEach(cat => cat.classList.remove('active'));
-    document.querySelector(`[data-category="${category}"]`).classList.add('active');
-    
-    displayEvents();
-};
-
-async function loadEvents() {
-    try {
-        const eventsRef = window.dbRef(window.database, 'events');
-        const snapshot = await window.dbGet(eventsRef);
-        
-        if (snapshot.exists()) {
-            events = snapshot.val();
-            displayEvents();
-        } else {
-            events = {};
-            displayEvents();
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки событий:', error);
-    }
-}
-
-function displayEvents() {
-    const container = document.getElementById('eventsContainer');
-    container.innerHTML = '';
-
-    const categoryEvents = Object.entries(events).filter(([_, event]) => 
-        event.category === currentCategory && event.status === 'active'
-    );
-
-    if (categoryEvents.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 50px; color: #b0bec5;">
-                <h3>Нет доступных событий в этой категории</h3>
-                <p>Скоро здесь появятся новые события</p>
-            </div>
-        `;
-        return;
-    }
-
-    categoryEvents.forEach(([eventId, event]) => {
-        const eventCard = createEventCard(eventId, event);
-        container.appendChild(eventCard);
-    });
-}
-
-function createEventCard(eventId, event) {
-    const div = document.createElement('div');
-    div.className = 'event-card';
-    
-    div.innerHTML = `
-        <div class="event-title">${event.title}</div>
-        <div class="event-description">${event.description}</div>
-        <div class="event-options">
-            ${event.options.map((option, index) => `
-                <div class="option-button" onclick="toggleBetSelection('${eventId}', ${index})">
-                    <div class="option-text">${option}</div>
-                    <div class="option-coefficient">${event.coefficients[index]}</div>
-                </div>
-            `).join('')}
-        </div>
-    `;
-    
-    return div;
-}
-
-// ===== КОРЗИНА СТАВОК =====
-window.toggleBetSelection = function(eventId, optionIndex) {
-    const event = events[eventId];
-    
-    // Проверяем, есть ли уже ставка из этого события
-    const existingBetIndex = selectedBets.findIndex(bet => bet.eventId === eventId);
-    
-    if (existingBetIndex !== -1) {
-        // Если это та же опция, убираем
-        if (selectedBets[existingBetIndex].optionIndex === optionIndex) {
-            selectedBets.splice(existingBetIndex, 1);
-        } else {
-            // Заменяем на новую опцию
-            selectedBets[existingBetIndex] = {
-                eventId,
-                optionIndex,
-                eventTitle: event.title,
-                option: event.options[optionIndex],
-                coefficient: event.coefficients[optionIndex]
-            };
-        }
-    } else {
-        // Добавляем новую ставку
-        selectedBets.push({
-            eventId,
-            optionIndex,
-            eventTitle: event.title,
-            option: event.options[optionIndex],
-            coefficient: event.coefficients[optionIndex]
-        });
-    }
-    
-    updateBetSlip();
-    updateEventButtons();
-};
-
-function updateBetSlip() {
-    const container = document.getElementById('betSlipContent');
-    
-    if (selectedBets.length === 0) {
-        container.innerHTML = `
-            <div class="empty-betslip">
-                <p>Выберите события для ставки</p>
-            </div>
-        `;
-        return;
-    }
-
-    const totalCoefficient = selectedBets.reduce((acc, bet) => acc * bet.coefficient, 1);
-    
-    container.innerHTML = `
-        <button class="clear-all" onclick="clearAllBets()">Очистить всё</button>
-        
-        <div style="margin-bottom: 20px;">
-            ${selectedBets.map((bet, index) => `
-                <div class="bet-item">
-                    <button class="remove-bet" onclick="removeBet(${index})">&times;</button>
-                    <div class="bet-event-title">${bet.eventTitle}</div>
-                    <div class="bet-option">${bet.option}</div>
-                    <div class="bet-coefficient">${bet.coefficient}</div>
-                </div>
-            `).join('')}
-        </div>
-
-        <div class="bet-summary">
-            <div class="bet-type-selector">
-                <button class="bet-type-button ${selectedBets.length === 1 ? 'active' : ''}" 
-                        ${selectedBets.length > 1 ? 'disabled' : ''}>
-                    Одиночная
-                </button>
-                <button class="bet-type-button ${selectedBets.length > 1 ? 'active' : ''}" 
-                        ${selectedBets.length === 1 ? 'disabled' : ''}>
-                    Экспресс
-                </button>
-            </div>
-            
-            <input type="number" class="stake-input" id="stakeAmount" 
-                   placeholder="Сумма ставки" min="1" max="${settings.maxBetAmount}"
-                   oninput="updatePotentialPayout()">
-            
-            <div class="potential-payout">
-                <strong>Общий коэффициент: ${totalCoefficient.toFixed(2)}</strong><br>
-                <span id="potentialPayout">Возможный выигрыш: 0 монет</span>
-            </div>
-            
-            <button class="place-bet-button" onclick="showBetModal()" 
-                    ${selectedBets.length === 0 ? 'disabled' : ''}>
-                Сделать ставку
-            </button>
-        </div>
-    `;
-}
-
-function updateEventButtons() {
-    // Сброс всех выделений
-    document.querySelectorAll('.option-button').forEach(btn => {
-        btn.classList.remove('selected');
-    });
-
-    // Выделение выбранных опций
-    selectedBets.forEach(bet => {
-        const eventCards = document.querySelectorAll('.event-card');
-        eventCards.forEach(card => {
-            const options = card.querySelectorAll('.option-button');
-            options.forEach((option, index) => {
-                const onclick = option.getAttribute('onclick');
-                if (onclick && onclick.includes(`'${bet.eventId}', ${bet.optionIndex}`)) {
-                    option.classList.add('selected');
-                }
-            });
-        });
-    });
-}
-
-window.removeBet = function(index) {
-    selectedBets.splice(index, 1);
-    updateBetSlip();
-    updateEventButtons();
-};
-
-window.clearAllBets = function() {
-    selectedBets = [];
-    updateBetSlip();
-    updateEventButtons();
-};
-
-window.updatePotentialPayout = function() {
-    const stake = parseFloat(document.getElementById('stakeAmount')?.value) || 0;
-    const totalCoefficient = selectedBets.reduce((acc, bet) => acc * bet.coefficient, 1);
-    const payout = (stake * totalCoefficient).toFixed(2);
-    
-    const payoutElement = document.getElementById('potentialPayout');
-    if (payoutElement) {
-        payoutElement.textContent = `Возможный выигрыш: ${payout} монет`;
-    }
-};
-
-// ===== МОДАЛЬНОЕ ОКНО СТАВКИ =====
-window.showBetModal = function() {
-    const stakeInput = document.getElementById('stakeAmount');
-    if (!stakeInput) return;
-    
-    const stake = parseFloat(stakeInput.value);
-    
-    if (!stake || stake <= 0) {
-        alert('Введите сумму ставки');
-        return;
-    }
-
-    if (stake > currentUser.balance) {
-        alert('Недостаточно средств');
-        return;
-    }
-
-    if (stake > settings.maxBetAmount) {
-        alert(`Максимальная ставка: ${settings.maxBetAmount} монет`);
-        return;
-    }
-
-    const totalCoefficient = selectedBets.reduce((acc, bet) => acc * bet.coefficient, 1);
-    const potentialPayout = (stake * totalCoefficient).toFixed(2);
-    const betType = selectedBets.length === 1 ? 'single' : 'express';
-
-    document.getElementById('betModalContent').innerHTML = `
-        <div style="margin-bottom: 20px;">
-            <h4>Тип ставки: ${betType === 'single' ? 'Одиночная' : 'Экспресс'}</h4>
-            <p><strong>Сумма ставки:</strong> ${stake} монет</p>
-            <p><strong>Общий коэффициент:</strong> ${totalCoefficient.toFixed(2)}</p>
-            <p><strong>Возможный выигрыш:</strong> ${potentialPayout} монет</p>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <h4>Выбранные события:</h4>
-            ${selectedBets.map(bet => `
-                <div style="background: rgba(255,255,255,0.1); padding: 10px; margin: 5px 0; border-radius: 8px;">
-                    <strong>${bet.eventTitle}</strong><br>
-                    ${bet.option} (${bet.coefficient})
-                </div>
-            `).join('')}
-        </div>
-        
-        <div style="display: flex; gap: 10px;">
-            <button class="btn" onclick="placeBet()" style="flex: 1;">Подтвердить</button>
-            <button class="btn" onclick="closeBetModal()" style="flex: 1; background: #666;">Отмена</button>
-        </div>
-    `;
-
-    document.getElementById('betModal').style.display = 'block';
-};
-
-window.closeBetModal = function() {
-    document.getElementById('betModal').style.display = 'none';
-};
-
-window.placeBet = async function() {
-    const stakeInput = document.getElementById('stakeAmount');
-    if (!stakeInput) return;
-    
-    const stake = parseFloat(stakeInput.value);
-    const totalCoefficient = selectedBets.reduce((acc, bet) => acc * bet.coefficient, 1);
-    const betType = selectedBets.length === 1 ? 'single' : 'express';
-
-    try {
-        const bet = {
-            user: currentUser.username,
-            type: betType,
-            events: selectedBets,
-            amount: stake,
-            coefficient: totalCoefficient,
-            status: 'pending',
-            timestamp: Date.now()
-        };
-
-        // Добавить ставку
-        const betsRef = window.dbRef(window.database, 'bets');
-        await window.dbPush(betsRef, bet);
-
-        // Обновить баланс
-        const newBalance = currentUser.balance - stake;
-        await window.dbUpdate(window.dbRef(window.database, `users/${currentUser.username}`), { balance: newBalance });
-        currentUser.balance = newBalance;
-
-        updateUserInfo();
-        clearAllBets();
-        closeBetModal();
-        
-        alert('Ставка принята!');
-    } catch (error) {
-        console.error('Ошибка размещения ставки:', error);
-        alert('Ошибка размещения ставки');
-    }
-};
-
-// ===== АДМИН ФУНКЦИИ =====
-window.addEvent = async function() {
-    const category = document.getElementById('eventCategory').value;
-    const title = document.getElementById('eventTitle').value.trim();
-    const description = document.getElementById('eventDescription').value.trim();
-    const optionsText = document.getElementById('eventOptions').value.trim();
-    const coefficientsText = document.getElementById('eventCoefficients').value.trim();
-
-    if (!title || !description || !optionsText || !coefficientsText) {
-        alert('Заполните все поля');
-        return;
-    }
-
-    const options = optionsText.split(',').map(s => s.trim()).filter(s => s);
-    const coefficients = coefficientsText.split(',').map(s => {
-        const coef = parseFloat(s.trim());
-        return isNaN(coef) ? null : coef;
-    }).filter(c => c !== null);
-
-    if (options.length === 0 || coefficients.length === 0) {
-        alert('Введите корректные варианты и коэффициенты');
-        return;
-    }
-
-    if (options.length !== coefficients.length) {
-        alert('Количество вариантов должно совпадать с количеством коэффициентов');
-        return;
-    }
-
-    try {
-        const newEvent = {
-            category,
-            title,
-            description,
-            options,
-            coefficients,
-            status: 'active',
-            createdBy: currentUser.username,
-            timestamp: Date.now()
-        };
-
-        const eventsRef = window.dbRef(window.database, 'events');
-        await window.dbPush(eventsRef, newEvent);
-
         // Очистить форму
-        document.getElementById('eventTitle').value = '';
-        document.getElementById('eventDescription').value = '';
-        document.getElementById('eventOptions').value = '';
-        document.getElementById('eventCoefficients').value = '';
-
-        await loadEvents();
-        loadAdminEvents();
-        alert('Событие добавлено успешно!');
+        document.getElementById('newAdminUserLogin').value = '';
+        document.getElementById('newAdminUserPassword').value = '';
+        document.getElementById('newAdminUserRole').value = 'user';
+        document.getElementById('newAdminUserBalance').value = settings.defaultBalance;
+        
+        closeAdminModal('addAdminUserModal');
+        loadAdminUsers();
+        alert('Пользователь добавлен успешно!');
     } catch (error) {
-        console.error('Ошибка добавления события:', error);
-        alert('Ошибка добавления события');
+        console.error('Ошибка добавления пользователя:', error);
+        alert('Ошибка добавления пользователя');
     }
 };
 
-async function loadAdminEvents() {
+window.updateAdminUser = async function() {
+    const username = document.getElementById('editAdminUserLogin')?.value;
+    const role = document.getElementById('editAdminUserRole')?.value;
+    const balance = parseInt(document.getElementById('editAdminUserBalance')?.value);
+    const betLimit = parseInt(document.getElementById('editAdminUserBetLimit')?.value);
+    const newPassword = document.getElementById('editAdminUserPassword')?.value.trim();
+    
+    if (!username) return;
+    
     try {
-        const eventsRef = window.dbRef(window.database, 'events');
-        const snapshot = await window.dbGet(eventsRef);
+        const userRef = window.dbRef(window.database, `users/${username}`);
+        const updates = {
+            role: role,
+            balance: balance,
+            betLimit: betLimit
+        };
         
-        if (snapshot.exists()) {
-            events = snapshot.val();
-            displayAdminEvents();
+        if (newPassword) {
+            updates.password = newPassword;
+        }
+        
+        await window.dbUpdate(userRef, updates);
+        
+        closeAdminModal('editAdminUserModal');
+        loadAdminUsers();
+        alert('Пользователь обновлен успешно!');
+        
+        // Обновить текущего пользователя если это он
+        if (currentUser && currentUser.username === username) {
+            currentUser.balance = balance;
+            currentUser.role = role;
+            updateUserInfo();
         }
     } catch (error) {
-        console.error('Ошибка загрузки событий:', error);
+        console.error('Ошибка обновления пользователя:', error);
+        alert('Ошибка обновления пользователя');
     }
-}
+};
 
-function displayAdminEvents() {
-    const container = document.getElementById('adminEventsList');
-    if (!container) return;
+window.toggleAdminUserStatus = async function(username) {
+    const user = allUsers[username];
+    if (!user) return;
     
-    container.innerHTML = '';
-
-    const eventEntries = Object.entries(events);
-    if (eventEntries.length === 0) {
-        container.innerHTML = '<p style="color: #b0bec5;">Нет событий</p>';
+    const newStatus = user.status === 'active' ? 'inactive' : 'active';
+    const action = newStatus === 'active' ? 'разблокировать' : 'заблокировать';
+    
+    if (!confirm(`Вы уверены, что хотите ${action} пользователя ${username}?`)) {
         return;
     }
+    
+    try {
+        const userRef = window.dbRef(window.database, `users/${username}`);
+        await window.dbUpdate(userRef, { status: newStatus });
+        
+        user.status = newStatus;
+        displayAdminUsers();
+        
+        const actionDone = newStatus === 'active' ? 'разблокирован' : 'заблокирован';
+        alert(`Пользователь ${username} ${actionDone}`);
+    } catch (error) {
+        console.error('Ошибка изменения статуса пользователя:', error);
+        alert('Ошибка изменения статуса пользователя');
+    }
+};
 
-    eventEntries.forEach(([eventId, event]) => {
-        const eventDiv = document.createElement('div');
-        eventDiv.className = 'admin-event-item';
+// ===== УПРАВЛЕНИЕ СТАВКАМИ =====
+window.loadAdminBets = async function() {
+    try {
+        const tbody = document.getElementById('adminBetsTableBody');
+        if (!tbody) return;
         
-        const categoryName = getCategoryName(event.category);
-        const statusText = event.status === 'active' ? 'Активно' : 'Завершено';
+        tbody.innerHTML = '<tr><td colspan="9" class="loading">Загрузка ставок...</td></tr>';
         
-        eventDiv.innerHTML = `
-            <div class="admin-event-title">${event.title}</div>
-            <div class="admin-event-info">
-                ${categoryName} | Статус: ${statusText}
-                ${event.createdBy ? ` | Создал: ${event.createdBy}` : ''}
-            </div>
-            ${event.status === 'active' ? `
-                <select class="admin-event-select" onchange="finishEvent('${eventId}', this.value)">
-                    <option value="">Завершить событие</option>
-                    ${event.options.map((option, index) => `
-                        <option value="${index}">${option}</option>
-                    `).join('')}
-                </select>
-            ` : `<span style="color: #4fc3f7;">Завершено</span>`}
+        const betsRef = window.dbRef(window.database, 'bets');
+        const snapshot = await window.dbGet(betsRef);
+        
+        if (snapshot.exists()) {
+            allBets = snapshot.val();
+            displayAdminBets();
+        } else {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #b0bec5;">Ставки не найдены</td></tr>';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки ставок:', error);
+        const tbody = document.getElementById('adminBetsTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #f44336;">Ошибка загрузки</td></tr>';
+        }
+    }
+};
+
+function displayAdminBets() {
+    const tbody = document.getElementById('adminBetsTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    Object.entries(allBets).forEach(([betId, bet]) => {
+        const row = document.createElement('tr');
+        
+        const statusClass = `status-${bet.status}`;
+        const potentialWin = (bet.amount * bet.coefficient).toFixed(2);
+        const betDate = new Date(bet.timestamp).toLocaleString();
+        
+        row.innerHTML = `
+            <td>${betId.substring(0, 8)}...</td>
+            <td>${bet.user}</td>
+            <td>${bet.type === 'single' ? 'Одиночная' : 'Экспресс'}</td>
+            <td>${bet.amount} монет</td>
+            <td>${bet.coefficient}</td>
+            <td>${potentialWin} монет</td>
+            <td><span class="${statusClass}">${getStatusName(bet.status)}</span></td>
+            <td>${betDate}</td>
+            <td>
+                <button class="btn" onclick="viewAdminBet('${betId}')">Просмотр</button>
+                ${bet.status === 'pending' ? `<button class="btn btn-danger" onclick="cancelAdminBet('${betId}')">Отменить</button>` : ''}
+            </td>
         `;
-        container.appendChild(eventDiv);
+        
+        tbody.appendChild(row);
     });
 }
 
-function getCategoryName(category) {
-    const categories = {
-        'politics': 'Политика',
-        'entertainment': 'Развлечения',
-        'technology': 'Технологии',
-        'economics': 'Экономика',
-        'weather': 'Погода',
-        'society': 'Общество'
+function getStatusName(status) {
+    const statuses = {
+        'pending': 'Ожидает',
+        'won': 'Выиграла',
+        'lost': 'Проиграла',
+        'cancelled': 'Отменена'
     };
-    return categories[category] || category;
+    return statuses[status] || status;
 }
 
-// ===== ФУНКЦИИ ДЛЯ РАБОТЫ С НЕЗАВЕРШЕННЫМИ СОБЫТИЯМИ =====
-window.loadUnfinishedEvents = async function() {
-    try {
-        const eventsRef = window.dbRef(window.database, 'events');
-        const snapshot = await window.dbGet(eventsRef);
+window.filterAdminBets = function() {
+    const statusFilter = document.getElementById('adminBetStatusFilter')?.value || 'all';
+    const typeFilter = document.getElementById('adminBetTypeFilter')?.value || 'all';
+    const userFilter = document.getElementById('adminBetUserFilter')?.value.toLowerCase() || '';
+    
+    const tbody = document.getElementById('adminBetsTableBody');
+    if (!tbody) return;
+    
+    const rows = tbody.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+        if (row.cells.length < 9) return;
         
-        if (snapshot.exists()) {
-            const allEvents = snapshot.val();
-            const unfinishedEvents = Object.entries(allEvents).filter(([_, event]) => 
-                !event.category || event.category === 'undefined'
-            );
-            
-            if (unfinishedEvents.length === 0) {
-                alert('Нет незавершенных событий');
-                return;
-            }
-            
-            let message = 'Найдены незавершенные события:\n\n';
-            unfinishedEvents.forEach(([id, event], index) => {
-                message += `${index + 1}. ${event.title}\n`;
-            });
-            message += '\nИспользуйте кнопку "Исправить категории" для их восстановления.';
-            
-            alert(message);
-        }
-    } catch (error) {
-        console.error('Ошибка загрузки незавершенных событий:', error);
-        alert('Ошибка загрузки событий');
-    }
+        const status = row.cells[6]?.textContent.toLowerCase() || '';
+        const type = row.cells[2]?.textContent.toLowerCase() || '';
+        const user = row.cells[1]?.textContent.toLowerCase() || '';
+        
+        const matchesStatus = statusFilter === 'all' || status.includes(getStatusName(statusFilter).toLowerCase());
+        const matchesType = typeFilter === 'all' || type.includes(typeFilter === 'single' ? 'одиночная' : 'экспресс');
+        const matchesUser = userFilter === '' || user.includes(userFilter);
+        
+        row.style.display = matchesStatus && matchesType && matchesUser ? '' : 'none';
+    });
 };
 
-window.fixEventsCategories = async function() {
-    try {
-        const eventsRef = window.dbRef(window.database, 'events');
-        const snapshot = await window.dbGet(eventsRef);
-        
-        if (snapshot.exists()) {
-            const allEvents = snapshot.val();
-            const updates = {};
-            let fixedCount = 0;
+window.viewAdminBet = function(betId) {
+    const bet = allBets[betId];
+    if (!bet) return;
+    
+    const details = document.getElementById('adminBetDetails');
+    if (!details) return;
+    
+    details.innerHTML = `
+        <div class="admin-card">
+            <p><strong>ID ставки:</strong> ${betId}</p>
+            <p><strong>Пользователь:</strong> ${bet.user}</p>
+            <p><strong>Тип:</strong> ${bet.type === 'single' ? 'Одиночная' : 'Экспресс'}</p>
+            <p><strong>Сумма:</strong> ${bet.amount} монет</p>
+            <p><strong>Коэффициент:</strong> ${bet.coefficient}</p>
+            <p><strong>Возможный выигрыш:</strong> ${(bet.amount * bet.coefficient).toFixed(2)} монет</p>
+            <p><strong>Статус:</strong> ${getStatusName(bet.status)}</p>
+            <p><strong>Дата:</strong> ${new Date(bet.timestamp).toLocaleString()}</p>
             
-            for (const [eventId, event] of Object.entries(allEvents)) {
-                if (!event.category || event.category === 'undefined') {
-                    // Присваиваем категорию "Общество" по умолчанию
-                    updates[`events/${eventId}/category`] = 'society';
-                    
-                    // Убеждаемся что статус активный
-                    if (!event.status) {
-                        updates[`events/${eventId}/status`] = 'active';
-                    }
-                    
-                    fixedCount++;
-                }
-            }
-            
-            if (fixedCount > 0) {
-                await window.dbUpdate(window.dbRef(window.database), updates);
-                await loadEvents();
-                loadAdminEvents();
-                alert(`Исправлено ${fixedCount} событий. Им присвоена категория "Общество".`);
-            } else {
-                alert('Нет событий для исправления');
-            }
-        }
-    } catch (error) {
-        console.error('Ошибка исправления событий:', error);
-        alert('Ошибка исправления событий');
-    }
+            <h4 style="margin-top: 20px; margin-bottom: 10px;">События:</h4>
+            ${bet.events.map(event => `
+                <div style="background: rgba(255,255,255,0.1); padding: 10px; margin: 5px 0; border-radius: 8px;">
+                    <strong>Событие:</strong> ${event.eventTitle || event.eventId}<br>
+                    <strong>Выбор:</strong> ${event.option}<br>
+                    <strong>Коэффициент:</strong> ${event.coefficient}
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    const modal = document.getElementById('viewAdminBetModal');
+    if (modal) modal.style.display = 'block';
 };
 
-window.finishEvent = async function(eventId, winningOptionIndex) {
-    if (winningOptionIndex === '') return;
-
-    if (!confirm('Вы уверены, что хотите завершить это событие?')) {
+window.cancelAdminBet = async function(betId) {
+    if (!confirm('Вы уверены, что хотите отменить эту ставку?')) {
         return;
     }
-
+    
+    const bet = allBets[betId];
+    if (!bet || bet.status !== 'pending') return;
+    
     try {
-        // Обновить статус события
-        await window.dbUpdate(window.dbRef(window.database, `events/${eventId}`), { 
-            status: 'finished',
-            result: parseInt(winningOptionIndex),
-            finishedAt: Date.now()
+        // Обновить статус ставки
+        const betRef = window.dbRef(window.database, `bets/${betId}`);
+        await window.dbUpdate(betRef, { 
+            status: 'cancelled',
+            cancelledAt: Date.now(),
+            cancelledBy: currentUser.username
         });
-
-        // Обработать ставки
-        const betsRef = window.dbRef(window.database, 'bets');
-        const betsSnapshot = await window.dbGet(betsRef);
         
-        if (betsSnapshot.exists()) {
-            const allBets = betsSnapshot.val();
-            const updates = {};
-            const balanceUpdates = {};
-            
-            for (const [betId, bet] of Object.entries(allBets)) {
-                if (bet.status === 'pending') {
-                    let shouldProcess = false;
-                    let won = false;
-                    
-                    if (bet.type === 'single') {
-                        // Для одиночной ставки
-                        const eventBet = bet.events.find(e => e.eventId === eventId);
-                        if (eventBet) {
-                            shouldProcess = true;
-                            won = eventBet.optionIndex === parseInt(winningOptionIndex);
-                        }
-                    } else if (bet.type === 'express') {
-                        // Для экспресса
-                        const eventBet = bet.events.find(e => e.eventId === eventId);
-                        if (eventBet) {
-                            const eventWon = eventBet.optionIndex === parseInt(winningOptionIndex);
-                            if (!eventWon) {
-                                // Экспресс проигран
-                                shouldProcess = true;
-                                won = false;
-                            } else {
-                                // Проверяем, все ли события завершены
-                                const allEventsFinished = bet.events.every(e => {
-                                    const event = events[e.eventId];
-                                    return event && event.status === 'finished';
-                                });
-                                
-                                if (allEventsFinished) {
-                                    // Проверяем, выиграны ли все события
-                                    const allEventsWon = bet.events.every(e => {
-                                        const event = events[e.eventId];
-                                        return event && event.result === e.optionIndex;
-                                    });
-                                    
-                                    shouldProcess = true;
-                                    won = allEventsWon;
-                                }
-                            }
-                        }
-                    }
-                    
-                    if (shouldProcess) {
-                        updates[`bets/${betId}/status`] = won ? 'won' : 'lost';
-                        updates[`bets/${betId}/settledAt`] = Date.now();
-                        
-                        // Начислить выигрыш
-                        if (won) {
-                            const winAmount = Math.round(bet.amount * bet.coefficient);
-                            if (!balanceUpdates[bet.user]) {
-                                balanceUpdates[bet.user] = 0;
-                            }
-                            balanceUpdates[bet.user] += winAmount;
-                        }
-                    }
-                }
-            }
-            
-            // Применить обновления ставок
-            if (Object.keys(updates).length > 0) {
-                await window.dbUpdate(window.dbRef(window.database), updates);
-            }
-            
-            // Обновить балансы
-            for (const [username, winAmount] of Object.entries(balanceUpdates)) {
-                const userRef = window.dbRef(window.database, `users/${username}`);
-                const userSnapshot = await window.dbGet(userRef);
-                if (userSnapshot.exists()) {
-                    const userData = userSnapshot.val();
-                    await window.dbUpdate(userRef, { 
-                        balance: userData.balance + winAmount 
-                    });
-                    
-                    // Обновить текущего пользователя если это он
-                    if (username === currentUser.username) {
-                        currentUser.balance = userData.balance + winAmount;
-                        updateUserInfo();
-                    }
-                }
-            }
+        // Вернуть средства пользователю
+        const userRef = window.dbRef(window.database, `users/${bet.user}`);
+        const userSnapshot = await window.dbGet(userRef);
+        
+        if (userSnapshot.exists()) {
+            const userData = userSnapshot.val();
+            await window.dbUpdate(userRef, { 
+                balance: userData.balance + bet.amount 
+            });
         }
-
-        await loadEvents();
-        loadAdminEvents();
-        alert('Событие завершено! Выигрыши начислены.');
+        
+        bet.status = 'cancelled';
+        displayAdminBets();
+        alert('Ставка отменена, средства возвращены пользователю');
     } catch (error) {
-        console.error('Ошибка завершения события:', error);
-        alert('Ошибка завершения события');
+        console.error('Ошибка отмены ставки:', error);
+        alert('Ошибка отмены ставки');
     }
 };
 
 // ===== НАСТРОЙКИ =====
-async function loadSettings() {
+window.loadAdminSettings = async function() {
     try {
         const settingsRef = window.dbRef(window.database, 'settings');
         const snapshot = await window.dbGet(settingsRef);
         
         if (snapshot.exists()) {
-            settings = snapshot.val();
+            const loadedSettings = snapshot.val();
+            Object.assign(settings, loadedSettings);
         }
+        
+        // Заполнить поля настроек
+        document.getElementById('adminMaxBetAmount').value = settings.maxBetAmount;
+        document.getElementById('adminDefaultBalance').value = settings.defaultBalance;
+        document.getElementById('adminMinBetAmount').value = settings.minBetAmount || 1;
+        document.getElementById('adminMaxCoefficient').value = settings.maxCoefficient || 50;
+        document.getElementById('adminWinCommission').value = settings.winCommission || 5;
+        document.getElementById('adminMinWithdraw').value = settings.minWithdraw || 100;
+        document.getElementById('adminMaxWithdrawPerDay').value = settings.maxWithdrawPerDay || 50000;
+        document.getElementById('adminMaintenanceMode').checked = settings.maintenanceMode || false;
+        document.getElementById('adminMaintenanceMessage').value = settings.maintenanceMessage || '';
     } catch (error) {
         console.error('Ошибка загрузки настроек:', error);
     }
-}
+};
 
-// ===== ИНИЦИАЛИЗАЦИЯ =====
-window.addEventListener('load', async function() {
-    // Ждем инициализации Firebase
-    let attempts = 0;
-    const maxAttempts = 50;
-    
-    const waitForFirebase = () => {
-        if (window.database && window.dbRef && window.dbGet && window.dbSet) {
-            initializeApp();
-        } else if (attempts < maxAttempts) {
-            attempts++;
-            setTimeout(waitForFirebase, 100);
-        } else {
-            console.error('Firebase не инициализирован');
-            alert('Ошибка подключения к базе данных');
-        }
-    };
-    
-    waitForFirebase();
-});
-
-async function initializeApp() {
+window.saveAdminSettings = async function() {
     try {
-        // Инициализация настроек
+        const newSettings = {
+            maxBetAmount: parseInt(document.getElementById('adminMaxBetAmount')?.value) || 1000,
+            defaultBalance: parseInt(document.getElementById('adminDefaultBalance')?.value) || 5000,
+            minBetAmount: parseInt(document.getElementById('adminMinBetAmount')?.value) || 1,
+            maxCoefficient: parseFloat(document.getElementById('adminMaxCoefficient')?.value) || 50
+        };
+        
+        Object.assign(settings, newSettings);
+        
         const settingsRef = window.dbRef(window.database, 'settings');
-        const snapshot = await window.dbGet(settingsRef);
+        await window.dbUpdate(settingsRef, newSettings);
         
-        if (!snapshot.exists()) {
-            await window.dbSet(settingsRef, settings);
-        } else {
-            settings = snapshot.val();
-        }
-
-        // Восстановление сессии
-        const savedUser = localStorage.getItem('currentUser');
-        if (savedUser) {
-            try {
-                const userData = JSON.parse(savedUser);
-                const userRef = window.dbRef(window.database, `users/${userData.username}`);
-                const userSnapshot = await window.dbGet(userRef);
-                
-                if (userSnapshot.exists()) {
-                    currentUser = { username: userData.username, ...userSnapshot.val() };
-                    showApp();
-                } else {
-                    localStorage.removeItem('currentUser');
-                }
-            } catch (error) {
-                console.error('Ошибка восстановления сессии:', error);
-                localStorage.removeItem('currentUser');
-            }
-        }
-        
-        // Добавляем обработчики событий
-        setupEventHandlers();
+        alert('Основные настройки сохранены!');
     } catch (error) {
-        console.error('Ошибка инициализации:', error);
+        console.error('Ошибка сохранения настроек:', error);
+        alert('Ошибка сохранения настроек');
     }
-}
+};
 
-function setupEventHandlers() {
-    // Закрытие модального окна по клику вне его
-    window.onclick = function(event) {
-        const modal = document.getElementById('betModal');
-        if (event.target === modal) {
-            closeBetModal();
-        }
-    };
+window.saveAdminCommissionSettings = async function() {
+    try {
+        const commissionSettings = {
+            winCommission: parseFloat(document.getElementById('adminWinCommission')?.value) || 5,
+            minWithdraw: parseInt(document.getElementById('adminMinWithdraw')?.value) || 100,
+            maxWithdrawPerDay: parseInt(document.getElementById('adminMaxWithdrawPerDay')?.value) || 50000
+        };
+        
+        Object.assign(settings, commissionSettings);
+        
+        const settingsRef = window.dbRef(window.database, 'settings');
+        await window.dbUpdate(settingsRef, commissionSettings);
+        
+        alert('Настройки комиссий сохранены!');
+    } catch (error) {
+        console.error('Ошибка сохранения настроек комиссий:', error);
+        alert('Ошибка сохранения настроек комиссий');
+    }
+};
 
-    // Обработка Enter в полях авторизации
-    const usernameField = document.getElementById('username');
-    const passwordField = document.getElementById('password');
-    
-    if (usernameField && passwordField) {
-        [usernameField, passwordField].forEach(field => {
-            field.addEventListener('keypress', function(event) {
-                if (event.key === 'Enter') {
-                    login();
+window.toggleAdminMaintenance = async function() {
+    try {
+        const maintenanceSettings = {
+            maintenanceMode: document.getElementById('adminMaintenanceMode')?.checked || false,
+            maintenanceMessage: document.getElementById('adminMaintenanceMessage')?.value || ''
+        };
+        
+        Object.assign(settings, maintenanceSettings);
+        
+        const settingsRef = window.dbRef(window.database, 'settings');
+        await window.dbUpdate(settingsRef, maintenanceSettings);
+        
+        const status = maintenanceSettings.maintenanceMode ? 'включен' : 'выключен';
+        alert(`Режим технического обслуживания ${status}!`);
+    } catch (error) {
+        console.error('Ошибка изменения режима обслуживания:', error);
+        alert('Ошибка изменения режима обслуживания');
+    }
+};
+
+// ===== СТАТИСТИКА =====
+window.loadAdminStatistics = async function() {
+    try {
+        // Загрузить все данные если еще не загружены
+        if (Object.keys(allUsers).length === 0) await loadAdminUsers();
+        if (Object.keys(allBets).length === 0) await loadAdminBets();
+        
+        // Подсчет общей статистики
+        const totalUsers = Object.keys(allUsers).length;
+        const totalBets = Object.keys(allBets).length;
+        const totalVolume = Object.values(allBets).reduce((sum, bet) => sum + bet.amount, 0);
+        const activeEvents = Object.values(events).filter(event => event.status === 'active').length;
+        const totalBalance = Object.values(allUsers).reduce((sum, user) => sum + (user.balance || 0), 0);
+        const pendingBets = Object.values(allBets).filter(bet => bet.status === 'pending').length;
+        
+        // Обновить отображение
+        document.getElementById('adminTotalUsers').textContent = totalUsers;
+        document.getElementById('adminTotalBets').textContent = totalBets;
+        document.getElementById('adminTotalVolume').textContent = totalVolume.toLocaleString();
+        document.getElementById('adminActiveEvents').textContent = activeEvents;
+        document.getElementById('adminTotalBalance').textContent = totalBalance.toLocaleString();
+        document.getElementById('adminPendingBets').textContent = pendingBets;
+        
+        // Статистика по категориям
+        const categoryStats = {};
+        Object.values(events).forEach(event => {
+            const category = event.category || 'unknown';
+            if (!categoryStats[category]) {
+                categoryStats[category] = { count: 0, bets: 0 };
+            }
+            categoryStats[category].count++;
+        });
+        
+        // Подсчет ставок по категориям
+        Object.values(allBets).forEach(bet => {
+            bet.events.forEach(eventBet => {
+                const event = events[eventBet.eventId];
+                if (event) {
+                    const category = event.category || 'unknown';
+                    if (categoryStats[category]) {
+                        categoryStats[category].bets++;
+                    }
                 }
             });
         });
+        
+        const categoryStatsDiv = document.getElementById('adminCategoryStats');
+        if (categoryStatsDiv) {
+            categoryStatsDiv.innerHTML = Object.entries(categoryStats).map(([category, stats]) => `
+                <div style="margin-bottom: 10px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                    <strong>${getCategoryName(category)}</strong><br>
+                    События: ${stats.count} | Ставки: ${stats.bets}
+                </div>
+            `).join('');
+        }
+        
+        // Топ игроки по обороту
+        const topPlayers = Object.entries(allUsers)
+            .map(([username, user]) => ({
+                username,
+                volume: Object.values(allBets)
+                    .filter(bet => bet.user === username)
+                    .reduce((sum, bet) => sum + bet.amount, 0),
+                balance: user.balance || 0
+            }))
+            .sort((a, b) => b.volume - a.volume)
+            .slice(0, 5);
+        
+        const topPlayersDiv = document.getElementById('adminTopPlayers');
+        if (topPlayersDiv) {
+            topPlayersDiv.innerHTML = topPlayers.map((player, index) => `
+                <div style="margin-bottom: 10px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                    <strong>${index + 1}. ${player.username}</strong><br>
+                    Оборот: ${player.volume.toLocaleString()} монет<br>
+                    Баланс: ${player.balance.toLocaleString()} монет
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики:', error);
     }
+};
+
+// ===== МОДАЛЬНЫЕ ОКНА =====
+window.closeAdminModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
+};
+
+// ===== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ =====
+window.exportAdminData = function() {
+    const data = {
+        users: allUsers,
+        bets: allBets,
+        events: events,
+        settings: settings,
+        exportDate: new Date().toISOString(),
+        exportedBy: currentUser.username
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `maxbet_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    alert('Данные экспортированы успешно!');
+};
+
+window.cleanAdminOldBets = async function() {
+    if (!confirm('Удалить ставки старше 30 дней? Это действие необратимо!')) return;
+    
+    try {
+        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        let deletedCount = 0;
+        const updates = {};
+        
+        Object.entries(allBets).forEach(([betId, bet]) => {
+            if (bet.timestamp < thirtyDaysAgo && bet.status !== 'pending') {
+                updates[`bets/${betId}`] = null; // Удаление в Firebase
+                delete allBets[betId];
+                deletedCount++;
+            }
+        });
+        
+        if (deletedCount > 0) {
+            await window.dbUpdate(window.dbRef(window.database), updates);
+        }
+        
+        alert(`Удалено ${deletedCount} старых ставок`);
+        if (currentAdminTab === 'bets') displayAdminBets();
+    } catch (error) {
+        console.error('Ошибка очистки старых ставок:', error);
+        alert('Ошибка очистки старых ставок');
+    }
+};
+
+window.resetAdminAllBalances = async function() {
+    if (!confirm('Сбросить балансы всех пользователей до стартового значения? Это действие необратимо!')) {
+        return;
+    }
+    
+    try {
+        const updates = {};
+        Object.keys(allUsers).forEach(username => {
+            updates[`users/${username}/balance`] = settings.defaultBalance;
+            allUsers[username].balance = settings.defaultBalance;
+        });
+        
+        await window.dbUpdate(window.dbRef(window.database), updates);
+        
+        alert('Балансы всех пользователей сброшены!');
+        if (currentAdminTab === 'users') displayAdminUsers();
+        
+        // Обновить текущего пользователя
+        if (currentUser && allUsers[currentUser.username]) {
+            currentUser.balance = settings.defaultBalance;
+            updateUserInfo();
+        }
+    } catch (error) {
+        console.error('Ошибка сброса балансов:', error);
+        alert('Ошибка сброса балансов');
+    }
+};
+
+function getCategoryName(category) {
+    const categories = {
+        'politics': '🏛️ Политика',
+        'entertainment': '🎭 Развлечения',
+        'technology': '💻 Технологии',
+        'economics': '💰 Экономика',
+        'weather': '🌤️ Погода',
+        'society': '👥 Общество'
+    };
+    return categories[category] || '❓ Неизвестно';
 }
+
+// ===== ОБРАБОТЧИКИ СОБЫТИЙ ДЛЯ МОДАЛЬНЫХ ОКОН =====
+window.addEventListener('click', function(event) {
+    // Закрытие модальных окон админ панели по клику вне их
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+});
+
+// Добавляем обработчики для фильтров (debounce для производительности)
+let filterTimeout;
+function debounceFilter(filterFunction) {
+    clearTimeout(filterTimeout);
+    filterTimeout = setTimeout(filterFunction, 300);
+}
+
+// Переопределяем функции фильтрации с debounce
+const originalFilterAdminUsers = window.filterAdminUsers;
+const originalFilterAdminBets = window.filterAdminBets;
+
+window.filterAdminUsers = function() {
+    debounceFilter(originalFilterAdminUsers);
+};
+
+window.filterAdminBets = function() {
+    debounceFilter(originalFilterAdminBets);
+};
