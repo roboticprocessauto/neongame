@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Моя букмекерская контора</title>
+    <title>MaxBet</title>
     <style>
         * {
             margin: 0;
@@ -407,25 +407,16 @@
         </div>
     </div>
 
+    <!-- Firebase конфигурация -->
+    <script src="firebase-config.js"></script>
+    
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getDatabase, ref, set, get, push, update, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
-        // Firebase конфигурация
-        const firebaseConfig = {
-            apiKey: "AIzaSyA7a22ZA0sjtPKof0GmwcAnNmHZ4s7d7U4",
-            authDomain: "checker-7f7b7.firebaseapp.com",
-            databaseURL: "https://checker-7f7b7-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "checker-7f7b7",
-            storageBucket: "checker-7f7b7.firebasestorage.app",
-            messagingSenderId: "55724792345",
-            appId: "1:55724792345:web:5df424f16e495d8f38a888",
-            measurementId: "G-2F94LPCYYM"
-        };
-
-        // Инициализация Firebase
-        const app = initializeApp(firebaseConfig);
+        // Инициализация Firebase (конфигурация загружается из firebase-config.js)
+        const app = initializeApp(window.firebaseConfig);
         const database = getDatabase(app);
 
         // Глобальные перемены
@@ -512,8 +503,10 @@
 
         window.logout = function() {
             currentUser = null;
+            localStorage.removeItem('currentUser'); // Удаляем из localStorage
             document.getElementById('authForm').classList.remove('hidden');
             document.getElementById('app').classList.add('hidden');
+            document.getElementById('adminPanel').classList.add('hidden');
             document.getElementById('username').value = '';
             document.getElementById('password').value = '';
         };
@@ -527,11 +520,15 @@
         };
 
         // Показать приложение после входа
-        function showApp() {
+        async function showApp() {
             document.getElementById('authForm').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             
+            // Сохранить пользователя в localStorage
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
             updateUserInfo();
+            await loadSettings(); // Загружаем настройки первыми
             loadEvents();
             loadUserBets();
             
@@ -539,7 +536,6 @@
                 document.getElementById('adminPanel').classList.remove('hidden');
                 loadUsers();
                 loadAdminEvents();
-                loadSettings();
             }
         }
 
@@ -598,6 +594,7 @@
                     <button class="btn btn-success" onclick="placeBet('${eventId}')" style="margin-left: 10px;">Поставить</button>
                     <button class="btn" onclick="cancelBet('${eventId}')" style="margin-left: 5px;">Отмена</button>
                     <div id="selectedOption_${eventId}" style="margin-top: 10px; font-weight: bold;"></div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">Максимальная ставка: ${settings.maxBetAmount} монет</div>
                 </div>
             `;
             return div;
@@ -960,8 +957,13 @@
                 
                 if (snapshot.exists()) {
                     settings = snapshot.val();
-                    document.getElementById('maxBetAmount').value = settings.maxBetAmount;
-                    document.getElementById('defaultBalance').value = settings.defaultBalance;
+                    // Обновляем поля в админке, если они есть
+                    if (document.getElementById('maxBetAmount')) {
+                        document.getElementById('maxBetAmount').value = settings.maxBetAmount;
+                    }
+                    if (document.getElementById('defaultBalance')) {
+                        document.getElementById('defaultBalance').value = settings.defaultBalance;
+                    }
                 }
             } catch (error) {
                 console.error('Ошибка загрузки настроек:', error);
@@ -976,7 +978,11 @@
             try {
                 settings = { maxBetAmount, defaultBalance };
                 await set(ref(database, 'settings'), settings);
-                alert('Настройки сохранены');
+                
+                // Перезагружаем события с новыми лимитами
+                displayEvents();
+                
+                alert('Настройки сохранены и применены!');
             } catch (error) {
                 console.error('Ошибка сохранения настроек:', error);
                 alert('Ошибка сохранения настроек');
@@ -986,11 +992,36 @@
         // Инициализация настроек при первом запуске
         window.addEventListener('load', async function() {
             try {
+                // Проверяем настройки в Firebase
                 const settingsRef = ref(database, 'settings');
                 const snapshot = await get(settingsRef);
                 
                 if (!snapshot.exists()) {
                     await set(settingsRef, settings);
+                } else {
+                    settings = snapshot.val();
+                }
+
+                // Проверяем сохраненного пользователя
+                const savedUser = localStorage.getItem('currentUser');
+                if (savedUser) {
+                    try {
+                        const userData = JSON.parse(savedUser);
+                        // Проверяем, что пользователь все еще существует в базе
+                        const userRef = ref(database, `users/${userData.username}`);
+                        const userSnapshot = await get(userRef);
+                        
+                        if (userSnapshot.exists()) {
+                            currentUser = { ...userData, ...userSnapshot.val() };
+                            showApp();
+                        } else {
+                            // Пользователь был удален, очищаем localStorage
+                            localStorage.removeItem('currentUser');
+                        }
+                    } catch (error) {
+                        console.error('Ошибка восстановления сессии:', error);
+                        localStorage.removeItem('currentUser');
+                    }
                 }
             } catch (error) {
                 console.error('Ошибка инициализации:', error);
