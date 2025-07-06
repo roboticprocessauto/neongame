@@ -247,7 +247,7 @@ function displayTransactions() {
 }
 
 // ===== ИЗМЕНЕНИЕ ПАРОЛЯ =====
-window.changePassword = async function() {
+async function changePassword() {
     const currentPassword = document.getElementById('currentPassword').value.trim();
     const newPassword = document.getElementById('newPassword').value.trim();
     const confirmPassword = document.getElementById('confirmPassword').value.trim();
@@ -274,7 +274,7 @@ window.changePassword = async function() {
     
     try {
         const userRef = dbRef(database, `users/${currentUser.username}`);
-        await update(userRef, { password: newPassword });
+        await dbUpdate(userRef, { password: newPassword });
         
         currentUser.password = newPassword;
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -316,7 +316,7 @@ async function loadUserSettings() {
     }
 }
 
-window.saveNotificationSettings = async function() {
+async function saveNotificationSettings() {
     try {
         userSettings = {
             notifyBets: document.getElementById('notifyBets').checked,
@@ -337,12 +337,12 @@ window.saveNotificationSettings = async function() {
 };
 
 // ===== ПОПОЛНЕНИЕ БАЛАНСА =====
-window.showTopupModal = function() {
+function showTopupModal() {
     const modal = document.getElementById('topupModal');
     if (modal) modal.style.display = 'block';
 };
 
-window.processTopup = async function() {
+async function processTopup() {
     const amount = parseInt(document.getElementById('topupAmount').value);
     const method = document.getElementById('paymentMethod').value;
     
@@ -385,12 +385,12 @@ window.processTopup = async function() {
 };
 
 // ===== ВЫВОД СРЕДСТВ =====
-window.showWithdrawModal = function() {
+function showWithdrawModal() {
     const modal = document.getElementById('withdrawModal');
     if (modal) modal.style.display = 'block';
 };
 
-window.processWithdraw = async function() {
+async function processWithdraw() {
     const amount = parseInt(document.getElementById('withdrawAmount').value);
     const method = document.getElementById('withdrawMethod').value;
     const details = document.getElementById('withdrawDetails').value.trim();
@@ -464,7 +464,7 @@ function getPaymentMethodName(method) {
 }
 
 // ===== МОДАЛЬНЫЕ ОКНА =====
-window.closeModal = function(modalId) {
+function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.style.display = 'none';
 };
@@ -491,7 +491,17 @@ function showNotification(message, type = 'info') {
 }
 
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
-window.logout = function() {
+function logout() {
     localStorage.removeItem('currentUser');
     window.location.href = 'login.html';
-};
+}
+
+// Экспортируем функции в глобальную область видимости
+window.changePassword = changePassword;
+window.saveNotificationSettings = saveNotificationSettings;
+window.showTopupModal = showTopupModal;
+window.processTopup = processTopup;
+window.showWithdrawModal = showWithdrawModal;
+window.processWithdraw = processWithdraw;
+window.closeModal = closeModal;
+window.logout = logout;
