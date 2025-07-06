@@ -10,3 +10,25 @@ window.firebaseConfig = {
     appId: "1:55724792345:web:5df424f16e495d8f38a888",
     measurementId: "G-2F94LPCYYM"
 };
+
+// Проверяем, что конфигурация загружена
+console.log('🔥 Firebase config загружен:', !!window.firebaseConfig);
+
+// Добавляем глобальную проверку доступности Firebase
+window.checkFirebaseConfig = function() {
+    if (!window.firebaseConfig) {
+        console.error('❌ Firebase конфигурация не найдена!');
+        return false;
+    }
+    
+    const requiredFields = ['apiKey', 'authDomain', 'databaseURL', 'projectId'];
+    const missingFields = requiredFields.filter(field => !window.firebaseConfig[field]);
+    
+    if (missingFields.length > 0) {
+        console.error('❌ Отсутствуют поля Firebase конфигурации:', missingFields);
+        return false;
+    }
+    
+    console.log('✅ Firebase конфигурация корректна');
+    return true;
+};
