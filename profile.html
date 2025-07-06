@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MaxBet - Профиль</title>
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="profile.css">
+</head>
+<body>
+    <!-- Шапка -->
+    <div class="header">
+        <div class="logo">🎯 MaxBet</div>
+        <div class="user-info">
+            <div class="balance">
+                Баланс: <span id="user-balance">0 монет</span>
+            </div>
+            <div class="user-menu">
+                <span>Привет, <span id="username">Пользователь</span>!</span>
+                <button class="btn btn-secondary" onclick="logout()" style="padding: 8px 16px; width: auto;">Выйти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Навигация -->
+    <div class="navigation">
+        <a href="main.html" class="nav-tab">📅 События</a>
+        <a href="history.html" class="nav-tab">📊 История ставок</a>
+        <a href="profile.html" class="nav-tab active">👤 Профиль</a>
+        <a href="admin.html" class="nav-tab" id="admin-link" style="display: none;">🛠️ Админ панель</a>
+    </div>
+
+    <!-- Основной контент -->
+    <div class="main-content">
+        <h1 class="page-title">Мой профиль</h1>
+
+        <!-- Статистика пользователя -->
+        <div id="profile-stats" class="profile-stats">
+            <!-- Статистика будет загружена динамически -->
+        </div>
+
+        <!-- Основная информация и изменение пароля -->
+        <div class="profile-grid">
+            <!-- Информация о профиле -->
+            <div class="profile-card">
+                <h3>📋 Информация о профиле</h3>
+                <div class="profile-info">
+                    <div class="info-item">
+                        <span class="info-label">Логин:</span>
+                        <span class="info-value" id="profile-username">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Роль:</span>
+                        <span class="info-value" id="profile-role">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Баланс:</span>
+                        <span class="info-value" id="profile-balance">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Лимит ставки:</span>
+                        <span class="info-value" id="profile-bet-limit">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Дата регистрации:</span>
+                        <span class="info-value" id="profile-registered">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Статус:</span>
+                        <span class="info-value" id="profile-status">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Изменение пароля -->
+            <div class="profile-card">
+                <h3>🔒 Изменение пароля</h3>
+                <div class="password-form">
+                    <div class="form-group">
+                        <label>Текущий пароль:</label>
+                        <input type="password" id="currentPassword" placeholder="Введите текущий пароль">
+                    </div>
+                    <div class="form-group">
+                        <label>Новый пароль:</label>
+                        <input type="password" id="newPassword" placeholder="Введите новый пароль">
+                    </div>
+                    <div class="form-group">
+                        <label>Подтвердите новый пароль:</label>
+                        <input type="password" id="confirmPassword" placeholder="Повторите новый пароль">
+                    </div>
+                    <button class="btn" onclick="changePassword()">Изменить пароль</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- История транзакций -->
+        <div class="transactions-section">
+            <h3 class="section-title">💰 История транзакций</h3>
+            <div id="transactions-list" class="transactions-list">
+                <div class="loading">Загрузка истории транзакций...</div>
+            </div>
+        </div>
+
+        <!-- Настройки уведомлений -->
+        <div class="notifications-settings">
+            <h3 class="section-title">🔔 Настройки уведомлений</h3>
+            
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Уведомления о ставках</div>
+                    <div class="setting-description">Получать уведомления когда ставка выиграла или проиграла</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="notifyBets" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Новые события</div>
+                    <div class="setting-description">Уведомления о новых доступных событиях для ставок</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="notifyEvents" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Промоакции</div>
+                    <div class="setting-description">Получать информацию о бонусах и специальных предложениях</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="notifyPromos">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <div class="setting-title">Email уведомления</div>
+                    <div class="setting-description">Дублировать уведомления на электронную почту</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="emailNotify">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button class="btn" onclick="saveNotificationSettings()">Сохранить настройки</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно пополнения баланса -->
+    <div id="topupModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('topupModal')">&times;</span>
+            <h3 class="modal-title">💰 Пополнение баланса</h3>
+            <div class="form-group">
+                <label>Сумма пополнения:</label>
+                <input type="number" id="topupAmount" placeholder="Введите сумму" min="100" max="50000">
+            </div>
+            <div class="form-group">
+                <label>Способ оплаты:</label>
+                <select id="paymentMethod">
+                    <option value="card">💳 Банковская карта</option>
+                    <option value="wallet">💼 Электронный кошелек</option>
+                    <option value="crypto">₿ Криптовалюта</option>
+                </select>
+            </div>
+            <div style="text-align: right;">
+                <button class="btn btn-secondary" onclick="closeModal('topupModal')">Отмена</button>
+                <button class="btn" onclick="processTopup()">Пополнить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно вывода средств -->
+    <div id="withdrawModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('withdrawModal')">&times;</span>
+            <h3 class="modal-title">💸 Вывод средств</h3>
+            <div class="form-group">
+                <label>Сумма вывода:</label>
+                <input type="number" id="withdrawAmount" placeholder="Введите сумму" min="100">
+            </div>
+            <div class="form-group">
+                <label>Способ вывода:</label>
+                <select id="withdrawMethod">
+                    <option value="card">💳 На банковскую карту</option>
+                    <option value="wallet">💼 На электронный кошелек</option>
+                    <option value="crypto">₿ В криптовалюте</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Реквизиты:</label>
+                <input type="text" id="withdrawDetails" placeholder="Номер карты, кошелька или адрес">
+            </div>
+            <div style="text-align: right;">
+                <button class="btn btn-secondary" onclick="closeModal('withdrawModal')">Отмена</button>
+                <button class="btn" onclick="processWithdraw()">Вывести</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script src="profile.js"></script>
+</body>
+</html>
