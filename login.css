@@ -1,0 +1,101 @@
+/* ===== СТИЛИ ДЛЯ СТРАНИЦЫ ВХОДА ===== */
+
+.login-container {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 40px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-width: 400px;
+    max-width: 500px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    margin: 100px auto;
+}
+
+.login-logo {
+    text-align: center;
+    font-size: 32px;
+    font-weight: bold;
+    color: #4fc3f7;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #b0bec5;
+    margin-bottom: 30px;
+    font-size: 16px;
+}
+
+.toggle-section {
+    display: none;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.toggle-section.active {
+    display: block;
+}
+
+.toggle-link {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.toggle-link a {
+    color: #4fc3f7;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.toggle-link a:hover {
+    text-decoration: underline;
+}
+
+.demo-users {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.demo-users h4 {
+    color: #4fc3f7;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.demo-user {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 13px;
+}
+
+.demo-user:last-child {
+    border-bottom: none;
+}
+
+.demo-user span:first-child {
+    color: #4fc3f7;
+    font-weight: bold;
+}
+
+.demo-user span:last-child {
+    color: #b0bec5;
+}
+
+@media (max-width: 768px) {
+    .login-container {
+        min-width: 300px;
+        margin: 20px;
+        padding: 30px;
+    }
+    
+    .login-logo {
+        font-size: 28px;
+    }
+}
