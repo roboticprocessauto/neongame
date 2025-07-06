@@ -2026,3 +2026,323 @@ window.MaxBetTestUtils = {
 
 console.log('MaxBet приложение полностью загружено и готово к использованию!');
 console.log('Для E2E тестирования доступен объект: window.MaxBetTestUtils');
+// ===== ДОПОЛНЕНИЯ К app.js =====
+// Добавьте эти функции в конец вашего app.js файла
+
+// Переопределение функций интерфейса
+window.showUserInterface = function() {
+    document.getElementById('login-container').classList.add('hidden');
+    document.getElementById('main-app').classList.remove('hidden');
+    
+    // Показать админ панель если пользователь админ или модератор
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'moderator')) {
+        document.getElementById('admin-nav-tab').style.display = 'block';
+    }
+    
+    updateUserInfo();
+    loadEvents();
+};
+
+window.showLoginInterface = function() {
+    document.getElementById('main-app').classList.add('hidden');
+    document.getElementById('login-container').classList.remove('hidden');
+    document.getElementById('admin-nav-tab').style.display = 'none';
+};
+
+// Обновление отображения событий для нового интерфейса
+window.displayEvents = function() {
+    const eventsContainer = document.getElementById('events-container');
+    if (!eventsContainer || !events) return;
+    
+    eventsContainer.innerHTML = '';
+    
+    const eventEntries = Object.entries(events);
+    if (eventEntries.length === 0) {
+        eventsContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #b0bec5;"><h3>Пока нет активных событий</h3><p>Следите за обновлениями!</p></div>';
+        return;
+    }
+    
+    eventEntries.forEach(([eventId, event]) => {
+        if (event.status !== 'active') return;
+        
+        const eventElement = document.createElement('div');
+        eventElement.className = 'event-card';
+        eventElement.setAttribute('data-event-id', eventId);
+        eventElement.innerHTML = `
+            <div class="event-header">
+                <div>
+                    <h3 class="event-title">${event.title}</h3>
+                </div>
+                <span class="event-category">${getCategoryName(event.category)}</span>
+            </div>
+            <p class="event-description">${event.description}</p>
+            <div class="event-options">
+                ${event.options.map((option, index) => `
+                    <button class="option-btn" onclick="selectOption('${eventId}', '${option}', ${event.coefficients[index]})">
+                        <span>${option}</span>
+                        <span>${event.coefficients[index]}</span>
+                    </button>
+                `).join('')}
+            </div>
+        `;
+        
+        eventsContainer.appendChild(eventElement);
+    });
+};
+
+// Интеграция с корзиной ставок
+window.selectOption = function(eventId, option, coefficient) {
+    if (!currentUser) {
+        alert('Войдите в систему, чтобы делать ставки');
+        return;
+    }
+    
+    // Убрать выделение с других кнопок этого события
+    document.querySelectorAll(`[data-event-id="${eventId}"] .option-btn`).forEach(btn => {
+        btn.classList.remove('selected');
+    });
+    
+    // Выделить выбранную кнопку
+    event.target.classList.add('selected');
+    
+    // Добавить в корзину ставок
+    addToBetSlip(eventId, option, coefficient);
+};
+
+// Функция добавления в корзину ставок
+function addToBetSlip(eventId, option, coefficient) {
+    const event = events ? events[eventId] : null;
+    if (!event) return;
+    
+    // Проверить, не добавлена ли уже ставка на это событие
+    const existingIndex = betSlip.findIndex(item => item.eventId === eventId);
+    
+    if (existingIndex !== -1) {
+        // Заменить существующую ставку
+        betSlip[existingIndex] = {
+            eventId: eventId,
+            eventTitle: event.title,
+            option: option,
+            coefficient: coefficient
+        };
+    } else {
+        // Добавить новую ставку
+        betSlip.push({
+            eventId: eventId,
+            eventTitle: event.title,
+            option: option,
+            coefficient: coefficient
+        });
+    }
+    
+    updateBetSlipDisplay();
+}
+
+// Обновление отображения корзины ставок
+function updateBetSlipDisplay() {
+    const container = document.getElementById('bet-slip-content');
+    if (!container) return;
+    
+    if (betSlip.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #b0bec5; padding: 20px;">Выберите варианты из событий</p>';
+        return;
+    }
+    
+    const totalCoefficient = betSlip.reduce((total, bet) => total * bet.coefficient, 1);
+    const maxBet = currentUser ? Math.min(currentUser.balance, currentUser.betLimit || 1000) : 1000;
+    
+    container.innerHTML = `
+        <div class="bet-slip-items">
+            ${betSlip.map((bet, index) => `
+                <div class="bet-slip-item">
+                    <div class="bet-slip-event">${bet.eventTitle}</div>
+                    <div class="bet-slip-option">${bet.option} (${bet.coefficient})</div>
+                    <button class="btn-remove" onclick="removeFromBetSlip(${index})">×</button>
+                </div>
+            `).join('')}
+        </div>
+        <div class="bet-slip-total">
+            <div>Общий коэффициент: ${totalCoefficient.toFixed(2)}</div>
+        </div>
+        <div class="bet-slip-controls">
+            <input type="number" id="bet-amount" placeholder="Сумма ставки" min="1" max="${maxBet}">
+            <button class="btn" onclick="placeBet('single')" style="width: 100%; margin-bottom: 10px;">Одиночная ставка</button>
+            ${betSlip.length > 1 ? '<button class="btn" onclick="placeBet(\'express\')" style="width: 100%;">Экспресс</button>' : ''}
+        </div>
+    `;
+}
+
+// Удаление из корзины ставок
+window.removeFromBetSlip = function(index) {
+    // Убрать выделение с кнопки
+    const removedBet = betSlip[index];
+    if (removedBet) {
+        document.querySelectorAll(`[data-event-id="${removedBet.eventId}"] .option-btn`).forEach(btn => {
+            btn.classList.remove('selected');
+        });
+    }
+    
+    betSlip.splice(index, 1);
+    updateBetSlipDisplay();
+};
+
+// Обновленная функция размещения ставки
+window.placeBet = async function(type) {
+    if (!currentUser) {
+        alert('Войдите в систему');
+        return;
+    }
+    
+    if (betSlip.length === 0) {
+        alert('Корзина ставок пуста');
+        return;
+    }
+    
+    const amount = parseInt(document.getElementById('bet-amount').value);
+    
+    if (!amount || amount < settings.minBetAmount) {
+        alert(`Минимальная ставка: ${settings.minBetAmount} монет`);
+        return;
+    }
+    
+    if (amount > currentUser.balance) {
+        alert('Недостаточно средств');
+        return;
+    }
+    
+    if (amount > (currentUser.betLimit || settings.maxBetAmount)) {
+        alert(`Превышен лимит ставки: ${currentUser.betLimit || settings.maxBetAmount} монет`);
+        return;
+    }
+    
+    try {
+        let coefficient;
+        let eventsList;
+        
+        if (type === 'single' && betSlip.length === 1) {
+            coefficient = betSlip[0].coefficient;
+            eventsList = betSlip;
+        } else if (type === 'express' && betSlip.length > 1) {
+            coefficient = betSlip.reduce((total, bet) => total * bet.coefficient, 1);
+            eventsList = betSlip;
+        } else {
+            alert('Неверный тип ставки');
+            return;
+        }
+        
+        // Создать ставку в базе данных
+        const betsRef = dbRef(database, 'bets');
+        const newBetRef = dbPush(betsRef);
+        
+        const bet = {
+            user: currentUser.username,
+            type: type,
+            amount: amount,
+            coefficient: parseFloat(coefficient.toFixed(2)),
+            status: 'pending',
+            timestamp: Date.now(),
+            events: eventsList
+        };
+        
+        await dbSet(newBetRef, bet);
+        
+        // Обновить баланс пользователя
+        const userRef = dbRef(database, `users/${currentUser.username}`);
+        await dbUpdate(userRef, { 
+            balance: currentUser.balance - amount 
+        });
+        
+        currentUser.balance -= amount;
+        updateUserInfo();
+        
+        // Очистить корзину ставок
+        betSlip = [];
+        
+        // Убрать выделение с всех кнопок
+        document.querySelectorAll('.option-btn.selected').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        
+        updateBetSlipDisplay();
+        
+        // Обновить историю ставок если она открыта
+        const historyTab = document.getElementById('main-tab-history');
+        if (historyTab && !historyTab.classList.contains('hidden')) {
+            loadUserBetsHistory();
+        }
+        
+        alert('Ставка размещена успешно!');
+        
+    } catch (error) {
+        console.error('Ошибка размещения ставки:', error);
+        alert('Ошибка размещения ставки');
+    }
+};
+
+// Обновление информации о пользователе
+window.updateUserInfo = function() {
+    if (!currentUser) return;
+    
+    // Обновить отображение баланса
+    const balanceElements = document.querySelectorAll('.user-balance');
+    balanceElements.forEach(el => {
+        el.textContent = `${currentUser.balance.toLocaleString()} монет`;
+    });
+    
+    // Обновить отображение имени пользователя
+    const usernameElements = document.querySelectorAll('.username');
+    usernameElements.forEach(el => {
+        el.textContent = currentUser.username;
+    });
+    
+    // Обновить роль
+    const roleElements = document.querySelectorAll('.user-role');
+    roleElements.forEach(el => {
+        el.textContent = getRoleName(currentUser.role);
+    });
+    
+    // Обновить максимальную ставку в поле
+    const betAmountInput = document.getElementById('bet-amount');
+    if (betAmountInput) {
+        const maxBet = Math.min(currentUser.balance, currentUser.betLimit || settings.maxBetAmount);
+        betAmountInput.setAttribute('max', maxBet);
+    }
+};
+
+// Функция загрузки истории ставок пользователя
+window.loadUserBetsHistory = async function() {
+    if (!currentUser) return;
+    
+    try {
+        const betsRef = dbRef(database, 'bets');
+        const snapshot = await dbGet(betsRef);
+        
+        if (snapshot.exists()) {
+            const allBets = snapshot.val();
+            const userBets = Object.entries(allBets)
+                .filter(([betId, bet]) => bet.user === currentUser.username)
+                .sort(([, a], [, b]) => b.timestamp - a.timestamp);
+            
+            displayUserBetsHistory(userBets);
+            displayUserStats(userBets);
+        } else {
+            displayUserBetsHistory([]);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки истории ставок:', error);
+        const historyContainer = document.getElementById('user-bets-history');
+        if (historyContainer) {
+            historyContainer.innerHTML = '<p style="text-align: center; color: #f44336;">Ошибка загрузки истории ставок</p>';
+        }
+    }
+};
+
+// Инициализация после загрузки DOM
+document.addEventListener('DOMContentLoaded', function() {
+    // Переинициализация корзины ставок
+    if (typeof betSlip === 'undefined') {
+        window.betSlip = [];
+    }
+    
+    console.log('MaxBet интерфейс полностью загружен');
+});
