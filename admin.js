@@ -590,9 +590,20 @@ async function resolveBet(betId, result) {
         }
         
         await dbUpdate(betRef, updateData);
+
+        // Деактивировать все события из этой ставки
+        if (Array.isArray(bet.events)) {
+            for (const event of bet.events) {
+                if (event.eventId) {
+                    const eventRef = dbRef(database, `events/${event.eventId}`);
+                    await dbUpdate(eventRef, { status: 'inactive' });
+                }
+            }
+        }
         
         showNotification(`Ставка отмечена как ${result === 'won' ? 'выигрышная' : 'проигрышная'}!`, 'success');
         loadBets();
+        loadEvents(); // обновить список событий
         
     } catch (error) {
         console.error('Ошибка обработки ставки:', error);
