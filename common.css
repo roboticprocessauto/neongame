@@ -1,0 +1,301 @@
+/* ===== ОБЩИЕ СТИЛИ ДЛЯ ВСЕХ СТРАНИЦ ===== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: #fff;
+    min-height: 100vh;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ===== ШАПКА ===== */
+.header {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #4fc3f7;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.balance {
+    background: rgba(79, 195, 247, 0.2);
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+    border: 1px solid rgba(79, 195, 247, 0.3);
+}
+
+.user-menu {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* ===== НАВИГАЦИЯ ===== */
+.navigation {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0;
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-tab {
+    padding: 15px 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    background: rgba(255, 255, 255, 0.05);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    text-decoration: none;
+    color: #fff;
+    display: block;
+}
+
+.nav-tab:hover {
+    background: rgba(79, 195, 247, 0.1);
+}
+
+.nav-tab.active {
+    background: rgba(79, 195, 247, 0.2);
+    border-bottom-color: #4fc3f7;
+    color: #4fc3f7;
+}
+
+/* ===== КНОПКИ ===== */
+.btn {
+    background: linear-gradient(45deg, #4fc3f7, #29b6f6);
+    border: none;
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    display: inline-block;
+    text-decoration: none;
+    text-align: center;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(79, 195, 247, 0.4);
+}
+
+.btn-secondary {
+    background: linear-gradient(45deg, #78909c, #607d8b);
+}
+
+.btn-success {
+    background: linear-gradient(45deg, #4caf50, #388e3c);
+}
+
+.btn-danger {
+    background: linear-gradient(45deg, #f44336, #d32f2f);
+}
+
+.btn-warning {
+    background: linear-gradient(45deg, #ff9800, #f57c00);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* ===== ФОРМЫ ===== */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #fff;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #4fc3f7;
+    box-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: #b0bec5;
+}
+
+/* ===== УВЕДОМЛЕНИЯ ===== */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #f44336;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+}
+
+.notification.success { background: #4caf50; }
+.notification.warning { background: #ff9800; }
+.notification.info { background: #4fc3f7; }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* ===== ЗАГРУЗКА ===== */
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #b0bec5;
+}
+
+.loading::after {
+    content: "";
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #4fc3f7;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+    margin-left: 10px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ===== СТАТУСЫ ===== */
+.status-active { 
+    color: #4caf50; 
+    font-weight: bold; 
+    padding: 4px 8px;
+    background: rgba(76, 175, 80, 0.2);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.status-inactive { 
+    color: #f44336; 
+    font-weight: bold; 
+    padding: 4px 8px;
+    background: rgba(244, 67, 54, 0.2);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.status-pending { 
+    color: #ff9800; 
+    font-weight: bold; 
+    padding: 4px 8px;
+    background: rgba(255, 152, 0, 0.2);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.status-won { 
+    color: #4caf50; 
+    font-weight: bold; 
+    padding: 4px 8px;
+    background: rgba(76, 175, 80, 0.2);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.status-lost { 
+    color: #f44336; 
+    font-weight: bold; 
+    padding: 4px 8px;
+    background: rgba(244, 67, 54, 0.2);
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+/* ===== АДАПТИВНОСТЬ ===== */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        padding: 15px;
+    }
+
+    .user-info {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .navigation {
+        flex-wrap: wrap;
+    }
+
+    .nav-tab {
+        flex: 1;
+        text-align: center;
+        padding: 12px 15px;
+        min-width: 120px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        padding: 10px;
+    }
+    
+    .nav-tab {
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+}
