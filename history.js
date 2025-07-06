@@ -60,7 +60,7 @@ async function loadEvents() {
 }
 
 // ===== ЗАГРУЗКА ИСТОРИИ СТАВОК =====
-window.loadUserBetsHistory = async function() {
+async function loadUserBetsHistory() {
     if (!currentUser) return;
 
     try {
@@ -228,7 +228,7 @@ function displayEmptyState() {
 }
 
 // ===== ФИЛЬТРАЦИЯ =====
-window.applyFilters = function() {
+function applyFilters() {
     const statusFilter = document.getElementById('statusFilter').value;
     const typeFilter = document.getElementById('typeFilter').value;
     const periodFilter = document.getElementById('periodFilter').value;
@@ -288,10 +288,15 @@ function getStatusName(status) {
 }
 
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
-window.logout = function() {
+function logout() {
     localStorage.removeItem('currentUser');
     window.location.href = 'login.html';
-};
+}
+
+// Экспортируем функции в глобальную область видимости
+window.loadUserBetsHistory = loadUserBetsHistory;
+window.applyFilters = applyFilters;
+window.logout = logout;
 
 // Автообновление каждые 60 секунд
 setInterval(() => {
