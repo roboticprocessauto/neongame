@@ -149,20 +149,20 @@ function setupEventHandlers() {
 }
 
 // ===== УПРАВЛЕНИЕ ФОРМАМИ =====
-window.showRegisterForm = function() {
+function showRegisterForm() {
     console.log('📝 Показ формы регистрации');
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('register-form').classList.add('active');
-};
+}
 
-window.showLoginForm = function() {
+function showLoginForm() {
     console.log('🔑 Показ формы входа');
     document.getElementById('register-form').classList.remove('active');
     document.getElementById('login-form').style.display = 'block';
-};
+}
 
 // ===== АУТЕНТИФИКАЦИЯ =====
-window.attemptLogin = async function() {
+async function attemptLogin() {
     console.log('🔑 Попытка входа...');
     
     const username = document.getElementById('loginUsername')?.value?.trim();
@@ -220,7 +220,7 @@ window.attemptLogin = async function() {
     }
 };
 
-window.attemptRegister = async function() {
+async function attemptRegister() {
     console.log('📝 Попытка регистрации...');
     
     const username = document.getElementById('registerUsername')?.value?.trim();
@@ -337,7 +337,7 @@ function showNotification(message, type = 'error') {
 }
 
 // ===== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ОТЛАДКИ =====
-window.testFirebaseConnection = async function() {
+async function testFirebaseConnection() {
     try {
         console.log('🧪 Тестирование подключения к Firebase...');
         const testRef = dbRef(database, 'test');
@@ -350,7 +350,7 @@ window.testFirebaseConnection = async function() {
     }
 };
 
-window.showDemoAccounts = function() {
+function showDemoAccounts() {
     const demoAccounts = [
         { username: 'admin', password: 'admin123', role: 'Администратор' },
         { username: 'user1', password: 'user123', role: 'Пользователь' },
@@ -363,7 +363,15 @@ window.showDemoAccounts = function() {
     });
 };
 
+// Экспортируем функции в глобальную область видимости
+window.showRegisterForm = showRegisterForm;
+window.showLoginForm = showLoginForm;
+window.attemptLogin = attemptLogin;
+window.attemptRegister = attemptRegister;
+window.testFirebaseConnection = testFirebaseConnection;
+window.showDemoAccounts = showDemoAccounts;
+
 // Вызываем показ демо аккаунтов при загрузке для удобства
 setTimeout(() => {
-    window.showDemoAccounts();
+    showDemoAccounts();
 }, 1000);
