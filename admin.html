@@ -87,8 +87,7 @@
                 <div class="admin-card">
                     <h4>Управление событиями</h4>
                     <div style="margin-bottom: 15px;">
-                        <button class="btn" onclick="loadAdminEvents()">Обновить список</button>
-                        <button class="btn btn-warning" onclick="exportEvents()">Экспорт событий</button>
+                        <button class="btn" onclick="loadEvents()">Обновить список</button>
                     </div>
                     <div id="adminEventsList" style="max-height: 400px; overflow-y: auto;"></div>
                 </div>
@@ -253,7 +252,6 @@
                 <!-- База данных -->
                 <div class="admin-card">
                     <h4>Управление данными</h4>
-                    <button class="btn btn-secondary" onclick="exportData()">Экспорт данных</button>
                     <button class="btn btn-warning" onclick="cleanOldBets()">Очистить старые ставки</button>
                     <button class="btn btn-danger" onclick="resetAllBalances()">Сбросить все балансы</button>
                     <br><br>
