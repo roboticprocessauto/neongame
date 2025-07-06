@@ -20,10 +20,33 @@ let users = {};
 let bets = {};
 let settings = {};
 
+// ===== ВЫХОД ИЗ СИСТЕМЫ =====
+function logout() {
+    localStorage.removeItem('currentUser');
+    window.location.href = 'login.html';
+}
+
+// ===== МОДАЛЬНЫЕ ОКНА =====
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
+}
+
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('DOMContentLoaded', function() {
     checkAuth();
     loadData();
+});
+
+// Экспортируем функции сразу при загрузке модуля
+window.logout = logout;
+window.closeModal = closeModal;
+
+// Закрытие модальных окон по клику вне их
+window.addEventListener('click', function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
 });
 
 function checkAuth() {
@@ -632,22 +655,135 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.style.display = 'none';
+// ===== НАСТРОЙКИ =====
+async function saveSettings() {
+    try {
+        const newSettings = {
+            maxBetAmount: parseInt(document.getElementById('maxBetAmount').value),
+            defaultBalance: parseInt(document.getElementById('defaultBalance').value),
+            minBetAmount: parseInt(document.getElementById('minBetAmount').value),
+            maxCoefficient: parseFloat(document.getElementById('maxCoefficient').value)
+        };
+        
+        // Валидация
+        if (newSettings.maxBetAmount < 1 || newSettings.defaultBalance < 0 || 
+            newSettings.minBetAmount < 1 || newSettings.maxCoefficient < 1) {
+            showNotification('Проверьте корректность значений', 'error');
+            return;
+        }
+        
+        const settingsRef = dbRef(database, 'settings');
+        await dbUpdate(settingsRef, newSettings);
+        
+        Object.assign(settings, newSettings);
+        showNotification('Настройки сохранены!', 'success');
+        
+    } catch (error) {
+        console.error('Ошибка сохранения настроек:', error);
+        showNotification('Ошибка сохранения настроек', 'error');
+    }
 }
 
-// Закрытие модальных окон по клику вне их
-window.addEventListener('click', function(event) {
-    if (event.target.classList.contains('modal')) {
-        event.target.style.display = 'none';
+async function saveCommissionSettings() {
+    try {
+        const newSettings = {
+            winCommission: parseFloat(document.getElementById('winCommission').value),
+            minWithdraw: parseInt(document.getElementById('minWithdraw').value),
+            maxWithdrawPerDay: parseInt(document.getElementById('maxWithdrawPerDay').value)
+        };
+        
+        // Валидация
+        if (newSettings.winCommission < 0 || newSettings.winCommission > 50 ||
+            newSettings.minWithdraw < 1 || newSettings.maxWithdrawPerDay < 100) {
+            showNotification('Проверьте корректность значений', 'error');
+            return;
+        }
+        
+        const settingsRef = dbRef(database, 'settings');
+        await dbUpdate(settingsRef, newSettings);
+        
+        Object.assign(settings, newSettings);
+        showNotification('Настройки комиссий сохранены!', 'success');
+        
+    } catch (error) {
+        console.error('Ошибка сохранения настроек комиссий:', error);
+        showNotification('Ошибка сохранения настроек', 'error');
     }
-});
+}
 
-// ===== ВЫХОД ИЗ СИСТЕМЫ =====
-function logout() {
-    localStorage.removeItem('currentUser');
-    window.location.href = 'login.html';
+async function toggleMaintenance() {
+    try {
+        const maintenanceMode = document.getElementById('maintenanceMode').checked;
+        const maintenanceMessage = document.getElementById('maintenanceMessage').value.trim();
+        
+        const settingsRef = dbRef(database, 'settings');
+        await dbUpdate(settingsRef, {
+            maintenanceMode: maintenanceMode,
+            maintenanceMessage: maintenanceMessage
+        });
+        
+        Object.assign(settings, { maintenanceMode, maintenanceMessage });
+        
+        const status = maintenanceMode ? 'включен' : 'выключен';
+        showNotification(`Режим технического обслуживания ${status}!`, 'success');
+        
+    } catch (error) {
+        console.error('Ошибка переключения режима обслуживания:', error);
+        showNotification('Ошибка переключения режима', 'error');
+    }
+}
+
+// ===== УПРАВЛЕНИЕ ДАННЫМИ =====
+async function cleanOldBets() {
+    if (!confirm('Удалить все ставки старше 30 дней? Это действие нельзя отменить.')) {
+        return;
+    }
+    
+    try {
+        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        const betsToDelete = Object.entries(bets).filter(([betId, bet]) => 
+            bet.timestamp < thirtyDaysAgo && bet.status !== 'pending'
+        );
+        
+        if (betsToDelete.length === 0) {
+            showNotification('Нет старых ставок для удаления', 'info');
+            return;
+        }
+        
+        for (const [betId, bet] of betsToDelete) {
+            const betRef = dbRef(database, `bets/${betId}`);
+            await dbRemove(betRef);
+        }
+        
+        showNotification(`Удалено ${betsToDelete.length} старых ставок!`, 'success');
+        loadBets();
+        
+    } catch (error) {
+        console.error('Ошибка очистки старых ставок:', error);
+        showNotification('Ошибка очистки ставок', 'error');
+    }
+}
+
+async function resetAllBalances() {
+    if (!confirm('Сбросить все балансы пользователей на стартовое значение? Это действие нельзя отменить.')) {
+        return;
+    }
+    
+    try {
+        const defaultBalance = settings.defaultBalance || 5000;
+        
+        for (const [username, user] of Object.entries(users)) {
+            const userRef = dbRef(database, `users/${username}`);
+            await dbUpdate(userRef, { balance: defaultBalance });
+        }
+        
+        showNotification(`Все балансы сброшены на ${defaultBalance} монет!`, 'success');
+        loadUsers();
+        
+    } catch (error) {
+        console.error('Ошибка сброса балансов:', error);
+        showNotification('Ошибка сброса балансов', 'error');
+    }
 }
 
 // Экспортируем функции в глобальную область видимости
