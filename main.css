@@ -1,0 +1,264 @@
+/* ===== СТИЛИ ДЛЯ ОСНОВНОЙ СТРАНИЦЫ ===== */
+
+/* ===== ОСНОВНОЙ КОНТЕНТ ===== */
+.main-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* ===== СОБЫТИЯ ===== */
+.events-section {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-title {
+    color: #4fc3f7;
+    margin-bottom: 20px;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.events-filters {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.filter-btn:hover,
+.filter-btn.active {
+    background: rgba(79, 195, 247, 0.3);
+    color: #4fc3f7;
+}
+
+.events-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.event-card {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.event-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+
+.event-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #4fc3f7;
+    margin-bottom: 5px;
+}
+
+.event-category {
+    background: rgba(79, 195, 247, 0.3);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.event-description {
+    color: #b0bec5;
+    margin-bottom: 20px;
+    line-height: 1.4;
+}
+
+.event-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.option-btn {
+    background: linear-gradient(45deg, #4fc3f7, #29b6f6);
+    border: none;
+    color: #fff;
+    padding: 12px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.option-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(79, 195, 247, 0.4);
+}
+
+.option-btn.selected {
+    background: linear-gradient(45deg, #4caf50, #388e3c);
+}
+
+.option-text {
+    font-size: 14px;
+}
+
+.option-coefficient {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* ===== КОРЗИНА СТАВОК ===== */
+.bet-slip-section {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: sticky;
+    top: 20px;
+    height: fit-content;
+}
+
+.bet-slip-empty {
+    text-align: center;
+    color: #b0bec5;
+    padding: 40px 20px;
+}
+
+.bet-slip-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+.bet-slip-event {
+    font-weight: bold;
+    color: #4fc3f7;
+    margin-bottom: 5px;
+    font-size: 14px;
+}
+
+.bet-slip-option {
+    color: #b0bec5;
+    font-size: 13px;
+}
+
+.btn-remove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #f44336;
+    border: none;
+    color: white;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.bet-slip-total {
+    background: rgba(79, 195, 247, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    text-align: center;
+}
+
+.total-coefficient {
+    font-size: 18px;
+    font-weight: bold;
+    color: #4fc3f7;
+}
+
+.bet-slip-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bet-amount-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 14px;
+}
+
+.bet-amount-input:focus {
+    outline: none;
+    border-color: #4fc3f7;
+    box-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
+}
+
+.bet-amount-input::placeholder {
+    color: #b0bec5;
+}
+
+.potential-win {
+    text-align: center;
+    color: #4caf50;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+/* ===== АДАПТИВНОСТЬ ===== */
+@media (max-width: 1024px) {
+    .main-content {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 15px;
+    }
+
+    .bet-slip-section {
+        position: static;
+    }
+}
+
+@media (max-width: 768px) {
+    .events-filters {
+        justify-content: center;
+    }
+
+    .event-options {
+        grid-template-columns: 1fr;
+    }
+
+    .main-content {
+        padding: 10px;
+    }
+}
