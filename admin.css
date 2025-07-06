@@ -167,6 +167,7 @@
     color: #fff;
     font-size: 14px;
     transition: all 0.3s ease;
+    cursor: pointer;
 }
 
 .filter-group select:focus,
@@ -174,6 +175,12 @@
     outline: none;
     border-color: #4fc3f7;
     box-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
+}
+
+.filter-group select option {
+    background: #2a5298;
+    color: #fff;
+    padding: 8px;
 }
 
 /* ===== РОЛИ И СТАТУСЫ ===== */
