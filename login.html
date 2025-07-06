@@ -74,5 +74,41 @@
 
     <script src="firebase-config.js"></script>
     <script src="auth.js"></script>
+    
+    <script>
+        // Дополнительная отладочная информация
+        window.addEventListener('load', function() {
+            console.log('🎯 login.html загружен');
+            console.log('🔧 Firebase config доступен:', !!window.firebaseConfig);
+            
+            // Добавляем отладочные кнопки (только в development)
+            if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                const debugInfo = document.createElement('div');
+                debugInfo.style.cssText = `
+                    position: fixed;
+                    bottom: 10px;
+                    left: 10px;
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    padding: 10px;
+                    border-radius: 5px;
+                    font-size: 12px;
+                    z-index: 10000;
+                `;
+                debugInfo.innerHTML = `
+                    <div>🔧 Debug Mode</div>
+                    <button onclick="window.testFirebaseConnection()" style="margin-top: 5px; padding: 2px 5px;">Test Firebase</button>
+                    <button onclick="window.showDemoAccounts()" style="margin-top: 5px; padding: 2px 5px;">Show Demo</button>
+                `;
+                document.body.appendChild(debugInfo);
+            }
+        });
+        
+        // Обработчик ошибок
+        window.addEventListener('error', function(e) {
+            console.error('🚨 JavaScript ошибка:', e.error);
+            console.error('📍 Файл:', e.filename, 'Строка:', e.lineno);
+        });
+    </script>
 </body>
 </html>
