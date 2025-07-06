@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MaxBet - Вход в систему</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 400px;
+            max-width: 500px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            color: #4fc3f7;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #b0bec5;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4fc3f7;
+            box-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
+        }
+
+        .form-group input::placeholder {
+            color: #b0bec5;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #4fc3f7, #29b6f6);
+            border: none;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 195, 247, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #78909c, #607d8b);
+        }
+
+        .toggle-section {
+            display: none;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .toggle-section.active {
+            display: block;
+        }
+
+        .toggle-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .toggle-link a {
+            color: #4fc3f7;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .toggle-link a:hover {
+            text-decoration: underline;
+        }
+
+        .demo-users {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .demo-users h4 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .demo-user {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 13px;
+        }
+
+        .demo-user:last-child {
+            border-bottom: none;
+        }
+
+        .demo-user span:first-child {
+            color: #4fc3f7;
+            font-weight: bold;
+        }
+
+        .demo-user span:last-child {
+            color: #b0bec5;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.success { background: #4caf50; }
+        .notification.warning { background: #ff9800; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .login-container {
+                min-width: 300px;
+                margin: 20px;
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">🎯 MaxBet</div>
+        <div class="subtitle">Система ставок на события</div>
+
+        <!-- Форма входа -->
+        <div id="login-form">
+            <div class="form-group">
+                <label>Логин:</label>
+                <input type="text" id="loginUsername" placeholder="Введите логин">
+            </div>
+            
+            <div class="form-group">
+                <label>Пароль:</label>
+                <input type="password" id="loginPassword" placeholder="Введите пароль">
+            </div>
+            
+            <button class="btn" onclick="attemptLogin()">Войти</button>
+            
+            <div class="toggle-link">
+                <a onclick="showRegisterForm()">Нет аккаунта? Зарегистрироваться</a>
+            </div>
+        </div>
+
+        <!-- Форма регистрации -->
+        <div id="register-form" class="toggle-section">
+            <h3 style="color: #4fc3f7; margin-bottom: 20px; text-align: center;">Регистрация</h3>
+            
+            <div class="form-group">
+                <label>Логин:</label>
+                <input type="text" id="registerUsername" placeholder="Выберите логин (минимум 3 символа)">
+            </div>
+            
+            <div class="form-group">
+                <label>Пароль:</label>
+                <input type="password" id="registerPassword" placeholder="Введите пароль (минимум 4 символа)">
+            </div>
+            
+            <div class="form-group">
+                <label>Подтвердите пароль:</label>
+                <input type="password" id="registerConfirmPassword" placeholder="Повторите пароль">
+            </div>
+            
+            <button class="btn" onclick="attemptRegister()">Зарегистрироваться</button>
+            <button class="btn btn-secondary" onclick="showLoginForm()">Назад к входу</button>
+        </div>
+
+        <!-- Демо пользователи -->
+        <div class="demo-users">
+            <h4>Демо аккаунты для тестирования:</h4>
+            <div class="demo-user">
+                <span>admin</span>
+                <span>admin123</span>
+            </div>
+            <div class="demo-user">
+                <span>user1</span>
+                <span>user123</span>
+            </div>
+            <div class="demo-user">
+                <span>moderator1</span>
+                <span>mod123</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script type="module">
+        // ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getDatabase, 
+            ref as dbRef, 
+            set as dbSet, 
+            get as dbGet, 
+            update as dbUpdate
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        const app = initializeApp(window.firebaseConfig);
+        const database = getDatabase(app);
+
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        window.addEventListener('DOMContentLoaded', function() {
+            checkExistingAuth();
+            createDemoUsers();
+            
+            // Обработчики Enter
+            document.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    if (document.getElementById('login-form').style.display !== 'none') {
+                        attemptLogin();
+                    } else {
+                        attemptRegister();
+                    }
+                }
+            });
+        });
+
+        function checkExistingAuth() {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                // Пользователь уже авторизован
+                window.location.href = 'main.html';
+            }
+        }
+
+        // ===== СОЗДАНИЕ ДЕМО ПОЛЬЗОВАТЕЛЕЙ =====
+        async function createDemoUsers() {
+            try {
+                const usersRef = dbRef(database, 'users');
+                const snapshot = await dbGet(usersRef);
+                
+                if (!snapshot.exists()) {
+                    // Создать демо пользователей
+                    const demoUsers = {
+                        'admin': {
+                            password: 'admin123',
+                            role: 'admin',
+                            balance: 50000,
+                            betLimit: 10000,
+                            registeredAt: Date.now(),
+                            status: 'active'
+                        },
+                        'user1': {
+                            password: 'user123',
+                            role: 'user',
+                            balance: 5000,
+                            betLimit: 1000,
+                            registeredAt: Date.now(),
+                            status: 'active'
+                        },
+                        'moderator1': {
+                            password: 'mod123',
+                            role: 'moderator',
+                            balance: 15000,
+                            betLimit: 5000,
+                            registeredAt: Date.now(),
+                            status: 'active'
+                        }
+                    };
+                    
+                    await dbSet(usersRef, demoUsers);
+                    console.log('Демо пользователи созданы');
+                }
+            } catch (error) {
+                console.error('Ошибка создания демо пользователей:', error);
+            }
+        }
+
+        // ===== УПРАВЛЕНИЕ ФОРМАМИ =====
+        window.showRegisterForm = function() {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('register-form').classList.add('active');
+        };
+
+        window.showLoginForm = function() {
+            document.getElementById('register-form').classList.remove('active');
+            document.getElementById('login-form').style.display = 'block';
+        };
+
+        // ===== АУТЕНТИФИКАЦИЯ =====
+        window.attemptLogin = async function() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            
+            if (!username || !password) {
+                showNotification('Заполните все поля', 'error');
+                return;
+            }
+            
+            try {
+                const userRef = dbRef(database, `users/${username}`);
+                const snapshot = await dbGet(userRef);
+                
+                if (!snapshot.exists()) {
+                    showNotification('Пользователь не найден', 'error');
+                    return;
+                }
+                
+                const userData = snapshot.val();
+                
+                if (userData.password !== password) {
+                    showNotification('Неверный пароль', 'error');
+                    return;
+                }
+                
+                if (userData.status === 'inactive') {
+                    showNotification('Ваш аккаунт заблокирован', 'error');
+                    return;
+                }
+                
+                const currentUser = {
+                    username: username,
+                    ...userData
+                };
+                
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                
+                showNotification('Вход выполнен успешно!', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = 'main.html';
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Ошибка входа:', error);
+                showNotification('Ошибка подключения к серверу', 'error');
+            }
+        };
+
+        window.attemptRegister = async function() {
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value.trim();
+            const confirmPassword = document.getElementById('registerConfirmPassword').value.trim();
+            
+            if (!username || !password || !confirmPassword) {
+                showNotification('Заполните все поля', 'error');
+                return;
+            }
+            
+            if (username.length < 3) {
+                showNotification('Логин должен содержать минимум 3 символа', 'error');
+                return;
+            }
+            
+            if (password.length < 4) {
+                showNotification('Пароль должен содержать минимум 4 символа', 'error');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showNotification('Пароли не совпадают', 'error');
+                return;
+            }
+            
+            try {
+                const userRef = dbRef(database, `users/${username}`);
+                const snapshot = await dbGet(userRef);
+                
+                if (snapshot.exists()) {
+                    showNotification('Пользователь с таким логином уже существует', 'error');
+                    return;
+                }
+                
+                const newUser = {
+                    password: password,
+                    role: 'user',
+                    balance: 5000,
+                    betLimit: 1000,
+                    registeredAt: Date.now(),
+                    status: 'active'
+                };
+                
+                await dbSet(userRef, newUser);
+                
+                showNotification('Регистрация прошла успешно! Теперь войдите в систему.', 'success');
+                
+                // Очистить форму
+                document.getElementById('registerUsername').value = '';
+                document.getElementById('registerPassword').value = '';
+                document.getElementById('registerConfirmPassword').value = '';
+                
+                setTimeout(() => {
+                    showLoginForm();
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Ошибка регистрации:', error);
+                showNotification('Ошибка подключения к серверу', 'error');
+            }
+        };
+
+        // ===== УВЕДОМЛЕНИЯ =====
+        function showNotification(message, type = 'error') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
