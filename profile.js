@@ -15,21 +15,12 @@ const database = getDatabase(app);
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
 let userBets = [];
-let userTransactions = [];
-let userSettings = {
-    notifyBets: true,
-    notifyEvents: true,
-    notifyPromos: false,
-    emailNotify: false
-};
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('DOMContentLoaded', function() {
     checkAuth();
     loadProfileData();
     loadUserBetsHistory();
-    loadTransactions();
-    loadUserSettings();
 });
 
 function checkAuth() {
@@ -183,68 +174,7 @@ function displayProfileStats() {
     `;
 }
 
-// ===== ЗАГРУЗКА ТРАНЗАКЦИЙ =====
-async function loadTransactions() {
-    try {
-        const transactionsRef = dbRef(database, `transactions/${currentUser.username}`);
-        const snapshot = await dbGet(transactionsRef);
-        
-        if (snapshot.exists()) {
-            userTransactions = Object.entries(snapshot.val())
-                .map(([id, transaction]) => ({ id, ...transaction }))
-                .sort((a, b) => b.timestamp - a.timestamp);
-        } else {
-            userTransactions = [];
-        }
-        
-        displayTransactions();
-    } catch (error) {
-        console.error('Ошибка загрузки транзакций:', error);
-        userTransactions = [];
-        displayTransactions();
-    }
-}
 
-function displayTransactions() {
-    const container = document.getElementById('transactions-list');
-    
-    if (userTransactions.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #b0bec5;">
-                <p>История транзакций пуста</p>
-                <div style="margin-top: 15px;">
-                    <button class="btn" onclick="showTopupModal()" style="margin-right: 10px;">Пополнить баланс</button>
-                    <button class="btn btn-secondary" onclick="showWithdrawModal()">Вывести средства</button>
-                </div>
-            </div>
-        `;
-        return;
-    }
-    
-    container.innerHTML = userTransactions.map(transaction => {
-        const isPositive = transaction.type === 'deposit' || transaction.type === 'win';
-        const typeNames = {
-            'deposit': 'Пополнение',
-            'withdraw': 'Вывод средств',
-            'bet': 'Ставка',
-            'win': 'Выигрыш',
-            'refund': 'Возврат'
-        };
-        
-        return `
-            <div class="transaction-item">
-                <div class="transaction-info">
-                    <div class="transaction-type">${typeNames[transaction.type] || transaction.type}</div>
-                    <div class="transaction-date">${new Date(transaction.timestamp).toLocaleString()}</div>
-                    ${transaction.description ? `<div class="transaction-description" style="color: #b0bec5; font-size: 12px;">${transaction.description}</div>` : ''}
-                </div>
-                <div class="transaction-amount ${isPositive ? 'positive' : 'negative'}">
-                    ${isPositive ? '+' : '-'}${Math.abs(transaction.amount)} монет
-                </div>
-            </div>
-        `;
-    }).join('');
-}
 
 // ===== ИЗМЕНЕНИЕ ПАРОЛЯ =====
 async function changePassword() {
@@ -286,182 +216,17 @@ async function changePassword() {
         
         showNotification('Пароль успешно изменен!', 'success');
         
-        // Добавить транзакцию
-        await addTransaction('security', 0, 'Изменение пароля');
-        
     } catch (error) {
         console.error('Ошибка изменения пароля:', error);
         showNotification('Ошибка изменения пароля', 'error');
     }
 };
 
-// ===== НАСТРОЙКИ УВЕДОМЛЕНИЙ =====
-async function loadUserSettings() {
-    try {
-        const settingsRef = dbRef(database, `userSettings/${currentUser.username}`);
-        const snapshot = await dbGet(settingsRef);
-        
-        if (snapshot.exists()) {
-            userSettings = { ...userSettings, ...snapshot.val() };
-        }
-        
-        // Применить настройки к UI
-        document.getElementById('notifyBets').checked = userSettings.notifyBets;
-        document.getElementById('notifyEvents').checked = userSettings.notifyEvents;
-        document.getElementById('notifyPromos').checked = userSettings.notifyPromos;
-        document.getElementById('emailNotify').checked = userSettings.emailNotify;
-        
-    } catch (error) {
-        console.error('Ошибка загрузки настроек:', error);
-    }
-}
 
-async function saveNotificationSettings() {
-    try {
-        userSettings = {
-            notifyBets: document.getElementById('notifyBets').checked,
-            notifyEvents: document.getElementById('notifyEvents').checked,
-            notifyPromos: document.getElementById('notifyPromos').checked,
-            emailNotify: document.getElementById('emailNotify').checked
-        };
-        
-        const settingsRef = dbRef(database, `userSettings/${currentUser.username}`);
-        await dbSet(settingsRef, userSettings);
-        
-        showNotification('Настройки уведомлений сохранены!', 'success');
-        
-    } catch (error) {
-        console.error('Ошибка сохранения настроек:', error);
-        showNotification('Ошибка сохранения настроек', 'error');
-    }
-};
 
-// ===== ПОПОЛНЕНИЕ БАЛАНСА =====
-function showTopupModal() {
-    const modal = document.getElementById('topupModal');
-    if (modal) modal.style.display = 'block';
-};
 
-async function processTopup() {
-    const amount = parseInt(document.getElementById('topupAmount').value);
-    const method = document.getElementById('paymentMethod').value;
-    
-    if (!amount || amount < 100) {
-        showNotification('Минимальная сумма пополнения: 100 монет', 'error');
-        return;
-    }
-    
-    if (amount > 50000) {
-        showNotification('Максимальная сумма пополнения: 50,000 монет', 'error');
-        return;
-    }
-    
-    try {
-        // Имитация обработки платежа
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Обновить баланс пользователя
-        const userRef = dbRef(database, `users/${currentUser.username}`);
-        const newBalance = currentUser.balance + amount;
-        await dbUpdate(userRef, { balance: newBalance });
-        
-        currentUser.balance = newBalance;
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        updateUserInfo();
-        displayProfileInfo();
-        
-        // Добавить транзакцию
-        await addTransaction('deposit', amount, `Пополнение через ${getPaymentMethodName(method)}`);
-        
-        closeModal('topupModal');
-        loadTransactions();
-        
-        showNotification(`Баланс пополнен на ${amount} монет!`, 'success');
-        
-    } catch (error) {
-        console.error('Ошибка пополнения:', error);
-        showNotification('Ошибка пополнения баланса', 'error');
-    }
-};
 
-// ===== ВЫВОД СРЕДСТВ =====
-function showWithdrawModal() {
-    const modal = document.getElementById('withdrawModal');
-    if (modal) modal.style.display = 'block';
-};
 
-async function processWithdraw() {
-    const amount = parseInt(document.getElementById('withdrawAmount').value);
-    const method = document.getElementById('withdrawMethod').value;
-    const details = document.getElementById('withdrawDetails').value.trim();
-    
-    if (!amount || amount < 100) {
-        showNotification('Минимальная сумма вывода: 100 монет', 'error');
-        return;
-    }
-    
-    if (amount > currentUser.balance) {
-        showNotification('Недостаточно средств на балансе', 'error');
-        return;
-    }
-    
-    if (!details) {
-        showNotification('Укажите реквизиты для вывода', 'error');
-        return;
-    }
-    
-    try {
-        // Обновить баланс пользователя
-        const userRef = dbRef(database, `users/${currentUser.username}`);
-        const newBalance = currentUser.balance - amount;
-        await dbUpdate(userRef, { balance: newBalance });
-        
-        currentUser.balance = newBalance;
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        updateUserInfo();
-        displayProfileInfo();
-        
-        // Добавить транзакцию
-        await addTransaction('withdraw', -amount, `Вывод через ${getPaymentMethodName(method)} на ${details}`);
-        
-        closeModal('withdrawModal');
-        loadTransactions();
-        
-        showNotification(`Запрос на вывод ${amount} монет отправлен!`, 'success');
-        
-    } catch (error) {
-        console.error('Ошибка вывода:', error);
-        showNotification('Ошибка вывода средств', 'error');
-    }
-};
-
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-async function addTransaction(type, amount, description) {
-    try {
-        const transactionsRef = dbRef(database, `transactions/${currentUser.username}`);
-        const newTransactionRef = dbPush(transactionsRef);
-        
-        const transaction = {
-            type: type,
-            amount: amount,
-            description: description,
-            timestamp: Date.now()
-        };
-        
-        await dbSet(newTransactionRef, transaction);
-    } catch (error) {
-        console.error('Ошибка добавления транзакции:', error);
-    }
-}
-
-function getPaymentMethodName(method) {
-    const methods = {
-        'card': 'банковскую карту',
-        'wallet': 'электронный кошелек',
-        'crypto': 'криптовалюту'
-    };
-    return methods[method] || method;
-}
 
 // ===== МОДАЛЬНЫЕ ОКНА =====
 function closeModal(modalId) {
@@ -498,10 +263,5 @@ function logout() {
 
 // Экспортируем функции в глобальную область видимости
 window.changePassword = changePassword;
-window.saveNotificationSettings = saveNotificationSettings;
-window.showTopupModal = showTopupModal;
-window.processTopup = processTopup;
-window.showWithdrawModal = showWithdrawModal;
-window.processWithdraw = processWithdraw;
 window.closeModal = closeModal;
 window.logout = logout;
