@@ -18,6 +18,7 @@ let currentUser = null;
 let events = {};
 let users = {};
 let bets = {};
+let settings = {};
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('DOMContentLoaded', function() {
@@ -56,7 +57,8 @@ async function loadData() {
         loadEvents(),
         loadUsers(),
         loadBets(),
-        loadStats()
+        loadStats(),
+        loadSettings()
     ]);
 }
 
@@ -77,6 +79,49 @@ function switchTab(tabName) {
     
     // Добавить активный класс к кнопке
     event.target.classList.add('active');
+}
+
+// ===== ЗАГРУЗКА НАСТРОЕК =====
+async function loadSettings() {
+    try {
+        const settingsRef = dbRef(database, 'settings');
+        const snapshot = await dbGet(settingsRef);
+        
+        if (snapshot.exists()) {
+            settings = snapshot.val();
+        } else {
+            // Создать настройки по умолчанию
+            settings = {
+                maxBetAmount: 1000,
+                defaultBalance: 5000,
+                minBetAmount: 1,
+                maxCoefficient: 50,
+                winCommission: 5,
+                minWithdraw: 100,
+                maxWithdrawPerDay: 10000,
+                maintenanceMode: false,
+                maintenanceMessage: ''
+            };
+            await dbSet(settingsRef, settings);
+        }
+        
+        // Заполнить поля формы
+        fillSettingsForm();
+    } catch (error) {
+        console.error('Ошибка загрузки настроек:', error);
+    }
+}
+
+function fillSettingsForm() {
+    document.getElementById('maxBetAmount').value = settings.maxBetAmount || 1000;
+    document.getElementById('defaultBalance').value = settings.defaultBalance || 5000;
+    document.getElementById('minBetAmount').value = settings.minBetAmount || 1;
+    document.getElementById('maxCoefficient').value = settings.maxCoefficient || 50;
+    document.getElementById('winCommission').value = settings.winCommission || 5;
+    document.getElementById('minWithdraw').value = settings.minWithdraw || 100;
+    document.getElementById('maxWithdrawPerDay').value = settings.maxWithdrawPerDay || 10000;
+    document.getElementById('maintenanceMode').checked = settings.maintenanceMode || false;
+    document.getElementById('maintenanceMessage').value = settings.maintenanceMessage || '';
 }
 
 // ===== УПРАВЛЕНИЕ СОБЫТИЯМИ =====
@@ -167,6 +212,41 @@ async function addEvent() {
     }
 }
 
+async function editEvent(eventId) {
+    const event = events[eventId];
+    if (!event) {
+        showNotification('Событие не найдено', 'error');
+        return;
+    }
+    
+    // Заполнить форму редактирования
+    document.getElementById('eventCategory').value = event.category;
+    document.getElementById('eventTitle').value = event.title;
+    document.getElementById('eventDescription').value = event.description;
+    document.getElementById('eventOptions').value = event.options.join(', ');
+    document.getElementById('eventCoefficients').value = event.coefficients.join(', ');
+    
+    // Показать уведомление о том, что форма заполнена
+    showNotification('Форма заполнена данными события. Измените нужные поля и нажмите "Добавить событие"', 'info');
+}
+
+async function deleteEvent(eventId) {
+    if (!confirm('Вы уверены, что хотите удалить это событие?')) {
+        return;
+    }
+    
+    try {
+        const eventRef = dbRef(database, `events/${eventId}`);
+        await dbRemove(eventRef);
+        
+        showNotification('Событие удалено!', 'success');
+        loadEvents();
+    } catch (error) {
+        console.error('Ошибка удаления события:', error);
+        showNotification('Ошибка удаления события', 'error');
+    }
+}
+
 // ===== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ =====
 async function loadUsers() {
     try {
@@ -215,6 +295,148 @@ function filterUsers() {
         if (searchFilter && !username.toLowerCase().includes(searchFilter.toLowerCase())) return false;
         return true;
     });
+}
+
+async function addUser() {
+    const username = document.getElementById('newUserLogin').value.trim();
+    const password = document.getElementById('newUserPassword').value.trim();
+    const role = document.getElementById('newUserRole').value;
+    const balance = parseInt(document.getElementById('newUserBalance').value) || 5000;
+    
+    if (!username || !password) {
+        showNotification('Заполните логин и пароль', 'error');
+        return;
+    }
+    
+    if (username.length < 3) {
+        showNotification('Логин должен содержать минимум 3 символа', 'error');
+        return;
+    }
+    
+    if (password.length < 4) {
+        showNotification('Пароль должен содержать минимум 4 символа', 'error');
+        return;
+    }
+    
+    if (users[username]) {
+        showNotification('Пользователь с таким логином уже существует', 'error');
+        return;
+    }
+    
+    try {
+        const newUser = {
+            password: password,
+            role: role,
+            balance: balance,
+            betLimit: settings.maxBetAmount || 1000,
+            registeredAt: Date.now(),
+            status: 'active'
+        };
+        
+        const userRef = dbRef(database, `users/${username}`);
+        await dbSet(userRef, newUser);
+        
+        // Очистить форму
+        document.getElementById('newUserLogin').value = '';
+        document.getElementById('newUserPassword').value = '';
+        document.getElementById('newUserBalance').value = '5000';
+        
+        closeModal('addUserModal');
+        showNotification('Пользователь добавлен!', 'success');
+        loadUsers();
+        
+    } catch (error) {
+        console.error('Ошибка добавления пользователя:', error);
+        showNotification('Ошибка добавления пользователя', 'error');
+    }
+}
+
+async function editUser(username) {
+    const user = users[username];
+    if (!user) {
+        showNotification('Пользователь не найден', 'error');
+        return;
+    }
+    
+    // Заполнить форму редактирования
+    document.getElementById('editUserLogin').value = username;
+    document.getElementById('editUserLoginDisplay').value = username;
+    document.getElementById('editUserRole').value = user.role;
+    document.getElementById('editUserBalance').value = user.balance;
+    document.getElementById('editUserBetLimit').value = user.betLimit || 1000;
+    document.getElementById('editUserPassword').value = '';
+    
+    // Показать модальное окно
+    const modal = document.getElementById('editUserModal');
+    if (modal) modal.style.display = 'block';
+}
+
+async function updateUser() {
+    const username = document.getElementById('editUserLogin').value;
+    const role = document.getElementById('editUserRole').value;
+    const balance = parseInt(document.getElementById('editUserBalance').value);
+    const betLimit = parseInt(document.getElementById('editUserBetLimit').value);
+    const newPassword = document.getElementById('editUserPassword').value.trim();
+    
+    if (!username || balance < 0 || betLimit < 1) {
+        showNotification('Заполните все поля корректно', 'error');
+        return;
+    }
+    
+    try {
+        const updateData = {
+            role: role,
+            balance: balance,
+            betLimit: betLimit
+        };
+        
+        if (newPassword) {
+            if (newPassword.length < 4) {
+                showNotification('Новый пароль должен содержать минимум 4 символа', 'error');
+                return;
+            }
+            updateData.password = newPassword;
+        }
+        
+        const userRef = dbRef(database, `users/${username}`);
+        await dbUpdate(userRef, updateData);
+        
+        closeModal('editUserModal');
+        showNotification('Пользователь обновлен!', 'success');
+        loadUsers();
+        
+    } catch (error) {
+        console.error('Ошибка обновления пользователя:', error);
+        showNotification('Ошибка обновления пользователя', 'error');
+    }
+}
+
+async function toggleUserStatus(username) {
+    const user = users[username];
+    if (!user) {
+        showNotification('Пользователь не найден', 'error');
+        return;
+    }
+    
+    const newStatus = user.status === 'active' ? 'inactive' : 'active';
+    const action = newStatus === 'active' ? 'разблокирован' : 'заблокирован';
+    
+    try {
+        const userRef = dbRef(database, `users/${username}`);
+        await dbUpdate(userRef, { status: newStatus });
+        
+        showNotification(`Пользователь ${action}!`, 'success');
+        loadUsers();
+        
+    } catch (error) {
+        console.error('Ошибка изменения статуса пользователя:', error);
+        showNotification('Ошибка изменения статуса', 'error');
+    }
+}
+
+function showAddUserModal() {
+    const modal = document.getElementById('addUserModal');
+    if (modal) modal.style.display = 'block';
 }
 
 // ===== УПРАВЛЕНИЕ СТАВКАМИ =====
@@ -272,6 +494,89 @@ function filterBets() {
     });
 }
 
+async function viewBet(betId) {
+    const bet = bets[betId];
+    if (!bet) {
+        showNotification('Ставка не найдена', 'error');
+        return;
+    }
+    
+    const potentialWin = (bet.amount * bet.coefficient).toFixed(2);
+    const actualWin = bet.status === 'won' ? 
+        (bet.winAmount || bet.amount * bet.coefficient).toFixed(2) : 0;
+    
+    const betDetails = document.getElementById('betDetails');
+    betDetails.innerHTML = `
+        <div style="margin-bottom: 15px;">
+            <strong>ID ставки:</strong> ${betId}<br>
+            <strong>Пользователь:</strong> ${bet.user}<br>
+            <strong>Тип:</strong> ${bet.type === 'single' ? 'Одиночная' : 'Экспресс'}<br>
+            <strong>Сумма:</strong> ${bet.amount} монет<br>
+            <strong>Коэффициент:</strong> ${bet.coefficient}<br>
+            <strong>Возможный выигрыш:</strong> ${potentialWin} монет<br>
+            <strong>Статус:</strong> ${getBetStatusName(bet.status)}<br>
+            <strong>Дата:</strong> ${new Date(bet.timestamp).toLocaleString()}
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <strong>События:</strong><br>
+            ${bet.events.map(event => `
+                <div style="margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 4px;">
+                    ${event.eventTitle} - ${event.option} (${event.coefficient})
+                </div>
+            `).join('')}
+        </div>
+        
+        ${bet.status === 'won' ? `<div style="color: #4caf50;"><strong>Фактический выигрыш:</strong> ${actualWin} монет</div>` : ''}
+        ${bet.status === 'lost' ? `<div style="color: #f44336;"><strong>Проигрыш:</strong> ${bet.amount} монет</div>` : ''}
+    `;
+    
+    const modal = document.getElementById('viewBetModal');
+    if (modal) modal.style.display = 'block';
+}
+
+async function resolveBet(betId, result) {
+    const bet = bets[betId];
+    if (!bet) {
+        showNotification('Ставка не найдена', 'error');
+        return;
+    }
+    
+    if (bet.status !== 'pending') {
+        showNotification('Ставка уже обработана', 'error');
+        return;
+    }
+    
+    try {
+        const betRef = dbRef(database, `bets/${betId}`);
+        const userRef = dbRef(database, `users/${bet.user}`);
+        
+        let updateData = { status: result };
+        
+        if (result === 'won') {
+            const winAmount = bet.amount * bet.coefficient;
+            updateData.winAmount = winAmount;
+            
+            // Обновить баланс пользователя
+            const userSnapshot = await dbGet(userRef);
+            if (userSnapshot.exists()) {
+                const userData = userSnapshot.val();
+                const newBalance = userData.balance + winAmount;
+                await dbUpdate(userRef, { balance: newBalance });
+            }
+        }
+        
+        await dbUpdate(betRef, updateData);
+        
+        showNotification(`Ставка отмечена как ${result === 'won' ? 'выигрышная' : 'проигрышная'}!`, 'success');
+        loadBets();
+        
+    } catch (error) {
+        console.error('Ошибка обработки ставки:', error);
+        showNotification('Ошибка обработки ставки', 'error');
+    }
+}
+
 // ===== СТАТИСТИКА =====
 async function loadStats() {
     try {
@@ -327,6 +632,18 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
+}
+
+// Закрытие модальных окон по клику вне их
+window.addEventListener('click', function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+});
+
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
 function logout() {
     localStorage.removeItem('currentUser');
@@ -336,15 +653,24 @@ function logout() {
 // Экспортируем функции в глобальную область видимости
 window.switchTab = switchTab;
 window.addEvent = addEvent;
+window.editEvent = editEvent;
+window.deleteEvent = deleteEvent;
 window.loadEvents = loadEvents;
 window.loadUsers = loadUsers;
 window.loadBets = loadBets;
 window.filterUsers = filterUsers;
 window.filterBets = filterBets;
-window.editEvent = function(id) { showNotification('Функция в разработке', 'info'); };
-window.deleteEvent = function(id) { showNotification('Функция в разработке', 'info'); };
-window.editUser = function(username) { showNotification('Функция в разработке', 'info'); };
-window.toggleUserStatus = function(username) { showNotification('Функция в разработке', 'info'); };
-window.viewBet = function(betId) { showNotification('Функция в разработке', 'info'); };
-window.resolveBet = function(betId, result) { showNotification('Функция в разработке', 'info'); };
+window.addUser = addUser;
+window.editUser = editUser;
+window.updateUser = updateUser;
+window.toggleUserStatus = toggleUserStatus;
+window.showAddUserModal = showAddUserModal;
+window.viewBet = viewBet;
+window.resolveBet = resolveBet;
+window.saveSettings = saveSettings;
+window.saveCommissionSettings = saveCommissionSettings;
+window.toggleMaintenance = toggleMaintenance;
+window.cleanOldBets = cleanOldBets;
+window.resetAllBalances = resetAllBalances;
+window.closeModal = closeModal;
 window.logout = logout; 
