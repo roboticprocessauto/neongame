@@ -94,6 +94,23 @@
             </div>
         </div>
 
+        <!-- Модальное окно завершения события -->
+        <div id="finishEventModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal('finishEventModal')">&times;</span>
+                <h3 class="modal-title">Завершить событие</h3>
+                <div id="finishEventTitle" style="margin-bottom: 15px;"></div>
+                <div class="form-group">
+                    <label>Выберите исход события:</label>
+                    <select id="finishEventOption"></select>
+                </div>
+                <div style="text-align: right;">
+                    <button class="btn btn-secondary" onclick="closeModal('finishEventModal')">Отмена</button>
+                    <button class="btn" onclick="finishEventConfirm()">Завершить</button>
+                </div>
+            </div>
+        </div>
+
         <!-- АДМИН: ПОЛЬЗОВАТЕЛИ -->
         <div id="tab-users" class="admin-tab-content hidden">
             <div class="admin-card">
