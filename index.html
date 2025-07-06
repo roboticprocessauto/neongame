@@ -1176,6 +1176,48 @@
     <script src="app.js"></script>
 
     <script>
+        // ===== ФУНКЦИИ АУТЕНТИФИКАЦИИ =====
+        window.attemptLogin = function() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            
+            if (!username || !password) {
+                alert('Заполните все поля');
+                return;
+            }
+            
+            if (window.login) {
+                window.login(username, password);
+            } else {
+                alert('Система аутентификации не загружена');
+            }
+        };
+
+        window.attemptRegister = function() {
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value.trim();
+            const confirmPassword = document.getElementById('registerConfirmPassword').value.trim();
+            
+            if (!username || !password || !confirmPassword) {
+                alert('Заполните все поля');
+                return;
+            }
+            
+            if (window.register) {
+                window.register(username, password, confirmPassword);
+            } else {
+                alert('Система регистрации не загружена');
+            }
+        };
+
+        window.logout = function() {
+            if (window.currentUser) {
+                window.currentUser = null;
+                localStorage.removeItem('currentUser');
+            }
+            showLoginInterface();
+        };
+
         // ===== УПРАВЛЕНИЕ ГЛАВНЫМИ ВКЛАДКАМИ =====
         function switchMainTab(tabName) {
             // Скрыть все главные вкладки
@@ -1245,6 +1287,84 @@
         }
 
         // ===== ЛОГИКА ИНТЕРФЕЙСА =====
+        window.showRegisterForm = function() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('register-section').classList.remove('hidden');
+        };
+
+        window.hideRegisterForm = function() {
+            document.getElementById('register-section').classList.add('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+        };
+
+        window.showMainInterface = function() {
+            document.getElementById('login-container').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            
+            // Показать админ панель если пользователь админ или модератор
+            if (window.currentUser && (window.currentUser.role === 'admin' || window.currentUser.role === 'moderator')) {
+                document.getElementById('admin-nav-tab').style.display = 'block';
+            }
+        };
+
+        window.hideMainInterface = function() {
+            document.getElementById('main-app').classList.add('hidden');
+            document.getElementById('login-container').classList.remove('hidden');
+            document.getElementById('admin-nav-tab').style.display = 'none';
+        };
+
+        function showLoginInterface() {
+            hideMainInterface();
+        }
+
+        function showUserInterface() {
+            showMainInterface();
+            if (window.updateUserInfo) window.updateUserInfo();
+        }
+
+        // ===== ФУНКЦИИ ДЛЯ АДМИН ПАНЕЛИ =====
+        
+        // Заглушки для функций админ панели (будут переопределены в app.js)
+        window.addEvent = function() { alert('Функция добавления события будет доступна после загрузки app.js'); };
+        window.loadAdminEvents = function() { console.log('loadAdminEvents: ожидание app.js'); };
+        window.loadUsers = function() { console.log('loadUsers: ожидание app.js'); };
+        window.loadBets = function() { console.log('loadBets: ожидание app.js'); };
+        window.loadAdminSettings = function() { console.log('loadAdminSettings: ожидание app.js'); };
+        window.loadStatistics = function() { console.log('loadStatistics: ожидание app.js'); };
+        window.saveSettings = function() { alert('Функция сохранения настроек будет доступна после загрузки app.js'); };
+        window.saveCommissionSettings = function() { alert('Функция сохранения настроек комиссий будет доступна после загрузки app.js'); };
+        window.toggleMaintenance = function() { alert('Функция режима обслуживания будет доступна после загрузки app.js'); };
+        window.exportData = function() { alert('Функция экспорта данных будет доступна после загрузки app.js'); };
+        window.cleanOldBets = function() { alert('Функция очистки ставок будет доступна после загрузки app.js'); };
+        window.resetAllBalances = function() { alert('Функция сброса балансов будет доступна после загрузки app.js'); };
+        window.showAddUserModal = function() { alert('Функция добавления пользователя будет доступна после загрузки app.js'); };
+        window.addUser = function() { alert('Функция добавления пользователя будет доступна после загрузки app.js'); };
+        window.editUser = function() { alert('Функция редактирования пользователя будет доступна после загрузки app.js'); };
+        window.updateUser = function() { alert('Функция обновления пользователя будет доступна после загрузки app.js'); };
+        window.toggleUserStatus = function() { alert('Функция изменения статуса пользователя будет доступна после загрузки app.js'); };
+        window.filterUsers = function() { console.log('filterUsers: ожидание app.js'); };
+        window.filterBets = function() { console.log('filterBets: ожидание app.js'); };
+        window.viewBet = function() { alert('Функция просмотра ставки будет доступна после загрузки app.js'); };
+        window.cancelBet = function() { alert('Функция отмены ставки будет доступна после загрузки app.js'); };
+        window.closeModal = function(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.style.display = 'none';
+        };
+        window.loadUnfinishedEvents = function() { alert('Функция поиска незавершенных событий - в разработке'); };
+        window.fixEventsCategories = function() { alert('Функция исправления категорий событий - в разработке'); };
+
+        // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
+        let betSlip = [];
+        let currentUser = null;
+        let events = {};
+        let settings = {
+            maxBetAmount: 1000,
+            defaultBalance: 5000,
+            minBetAmount: 1,
+            maxCoefficient: 50
+        };
+
+        // ===== ОБРАБОТКА СОБЫТИЙ ВЫБОРА ОПЦИЙ =====
         window.showRegisterForm = function() {
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('register-section').classList.remove('hidden');
@@ -1365,6 +1485,45 @@
             updateBetSlipDisplay();
         };
 
+        // ===== ФУНКЦИЯ РАЗМЕЩЕНИЯ СТАВКИ =====
+        window.placeBet = function(type) {
+            if (!currentUser) {
+                alert('Войдите в систему, чтобы делать ставки');
+                return;
+            }
+            
+            if (betSlip.length === 0) {
+                alert('Корзина ставок пуста');
+                return;
+            }
+            
+            const amount = parseInt(document.getElementById('bet-amount').value);
+            
+            if (!amount || amount < (settings.minBetAmount || 1)) {
+                alert(`Минимальная ставка: ${settings.minBetAmount || 1} монет`);
+                return;
+            }
+            
+            if (amount > (currentUser.balance || 0)) {
+                alert('Недостаточно средств');
+                return;
+            }
+            
+            const maxBet = Math.min(currentUser.balance || 0, currentUser.betLimit || settings.maxBetAmount || 1000);
+            if (amount > maxBet) {
+                alert(`Превышен лимит ставки: ${maxBet} монет`);
+                return;
+            }
+            
+            // Если app.js загружен, использовать его функцию
+            if (window.placeBet !== this && typeof window.placeBet === 'function') {
+                return window.placeBet(type);
+            }
+            
+            // Иначе показать сообщение о необходимости загрузки
+            alert('Система ставок загружается. Попробуйте через несколько секунд.');
+        };
+
         // ===== ОТОБРАЖЕНИЕ СОБЫТИЙ =====
         window.displayEvents = function() {
             const eventsContainer = document.getElementById('events-container');
@@ -1444,8 +1603,94 @@
                 };
             }
             
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        window.addEventListener('load', function() {
+            // Переопределить функции из app.js для интеграции с интерфейсом
+            if (window.showUserInterface) {
+                const originalShowUserInterface = window.showUserInterface;
+                window.showUserInterface = function() {
+                    showMainInterface();
+                    if (window.updateUserInfo) window.updateUserInfo();
+                };
+            }
+            
+            if (window.showLoginInterface) {
+                const originalShowLoginInterface = window.showLoginInterface;
+                window.showLoginInterface = function() {
+                    hideMainInterface();
+                };
+            }
+            
+            // Переопределить displayEvents
+            if (window.displayEvents) {
+                const originalDisplayEvents = window.displayEvents;
+                window.displayEvents = function() {
+                    displayEvents();
+                };
+            }
+            
+            // Проверить сохраненного пользователя
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    showUserInterface();
+                } catch (error) {
+                    console.error('Ошибка загрузки сохраненного пользователя:', error);
+                    localStorage.removeItem('currentUser');
+                }
+            }
+            
             console.log('MaxBet интерфейс загружен');
         });
+
+        // ===== ОБРАБОТЧИКИ КЛАВИАТУРЫ =====
+        document.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                if (event.target.id === 'loginPassword') {
+                    attemptLogin();
+                } else if (event.target.id === 'registerConfirmPassword') {
+                    attemptRegister();
+                } else if (event.target.id === 'bet-amount') {
+                    // Автоматически сделать ставку при нажатии Enter в поле суммы
+                    if (betSlip.length === 1) {
+                        placeBet('single');
+                    } else if (betSlip.length > 1) {
+                        placeBet('express');
+                    }
+                }
+            }
+        });
+
+        // ===== ЗАКРЫТИЕ МОДАЛЬНЫХ ОКОН =====
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        };
+
+        // ===== ПРОВЕРКА ЗАГРУЗКИ APP.JS =====
+        function checkAppJSLoaded() {
+            if (window.database && window.login && window.register) {
+                console.log('✅ app.js успешно загружен');
+                
+                // Если пользователь уже сохранен, попробовать войти
+                if (currentUser && currentUser.username) {
+                    showUserInterface();
+                    if (window.updateUserInfo) window.updateUserInfo();
+                    if (window.loadEvents) window.loadEvents();
+                }
+            } else {
+                console.log('⏳ Ожидание загрузки app.js...');
+                setTimeout(checkAppJSLoaded, 1000);
+            }
+        }
+
+        // Запустить проверку через секунду
+        setTimeout(checkAppJSLoaded, 1000);
+
+        console.log('🎯 MaxBet - Интерфейс инициализирован');
+        console.log('📝 Для тестирования доступен: window.MaxBetTestUtils');
     </script>
 </body>
 </html>
