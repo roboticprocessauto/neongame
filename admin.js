@@ -182,6 +182,7 @@ function displayAdminEvents() {
                 <div>
                     <button class="btn" onclick="editEvent('${id}')" style="margin-right: 5px;">Редактировать</button>
                     <button class="btn btn-danger" onclick="deleteEvent('${id}')">Удалить</button>
+                    ${event.status === 'active' ? `<button class='btn btn-success' onclick="openFinishEventModal('${id}')">Завершить</button>` : ''}
                 </div>
             </div>
         </div>
@@ -495,10 +496,6 @@ function displayBets() {
             <td>${new Date(bet.timestamp).toLocaleDateString()}</td>
             <td>
                 <button class="btn" onclick="viewBet('${betId}')">Просмотр</button>
-                ${bet.status === 'pending' ? `
-                    <button class="btn btn-success" onclick="resolveBet('${betId}', 'won')">Выиграла</button>
-                    <button class="btn btn-danger" onclick="resolveBet('${betId}', 'lost')">Проиграла</button>
-                ` : ''}
             </td>
         </tr>
     `).join('');
@@ -794,6 +791,61 @@ async function resetAllBalances() {
     } catch (error) {
         console.error('Ошибка сброса балансов:', error);
         showNotification('Ошибка сброса балансов', 'error');
+    }
+}
+
+// Открытие модалки завершения события
+window.openFinishEventModal = function(eventId) {
+    const event = events[eventId];
+    if (!event) return;
+    document.getElementById('finishEventTitle').textContent = event.title;
+    const select = document.getElementById('finishEventOption');
+    select.innerHTML = event.options.map((opt, idx) => `<option value="${opt}">${opt}</option>`).join('');
+    select.dataset.eventId = eventId;
+    document.getElementById('finishEventModal').style.display = 'block';
+}
+
+// Подтверждение завершения события и расчет ставок
+window.finishEventConfirm = async function() {
+    const select = document.getElementById('finishEventOption');
+    const eventId = select.dataset.eventId;
+    const winningOption = select.value;
+    if (!eventId || !winningOption) return;
+    try {
+        // 1. Обновить событие: статус и winningOption
+        const eventRef = dbRef(database, `events/${eventId}`);
+        await dbUpdate(eventRef, { status: 'finished', winningOption });
+        // 2. Рассчитать все ставки по этому событию
+        let updated = 0;
+        for (const [betId, bet] of Object.entries(bets)) {
+            if (bet.status !== 'pending') continue;
+            // Есть ли это событие в ставке?
+            const betEvent = (bet.events || []).find(e => e.eventId === eventId);
+            if (!betEvent) continue;
+            let isWin = betEvent.option === winningOption;
+            let updateData = { status: isWin ? 'won' : 'lost' };
+            if (isWin) {
+                updateData.winAmount = bet.amount * bet.coefficient;
+                // Обновить баланс пользователя
+                const userRef = dbRef(database, `users/${bet.user}`);
+                const userSnapshot = await dbGet(userRef);
+                if (userSnapshot.exists()) {
+                    const userData = userSnapshot.val();
+                    const newBalance = userData.balance + updateData.winAmount;
+                    await dbUpdate(userRef, { balance: newBalance });
+                }
+            }
+            const betRef = dbRef(database, `bets/${betId}`);
+            await dbUpdate(betRef, updateData);
+            updated++;
+        }
+        closeModal('finishEventModal');
+        showNotification(`Событие завершено. Рассчитано ставок: ${updated}`, 'success');
+        loadEvents();
+        loadBets();
+    } catch (error) {
+        console.error('Ошибка завершения события:', error);
+        showNotification('Ошибка завершения события', 'error');
     }
 }
 
