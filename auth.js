@@ -1,40 +1,74 @@
-// ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { 
-    getDatabase, 
-    ref as dbRef, 
-    set as dbSet, 
-    get as dbGet, 
-    update as dbUpdate
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-const app = initializeApp(window.firebaseConfig);
-const database = getDatabase(app);
-
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
+let database = null;
+let dbRef = null;
+let dbSet = null;
+let dbGet = null;
+let dbUpdate = null;
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
-window.addEventListener('DOMContentLoaded', function() {
-    checkExistingAuth();
-    createDemoUsers();
+window.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 Загрузка auth.js...');
     
-    // Обработчики Enter
-    document.addEventListener('keypress', function(event) {
-        if (event.key === 'Enter') {
-            if (document.getElementById('login-form').style.display !== 'none') {
-                attemptLogin();
-            } else {
-                attemptRegister();
-            }
-        }
-    });
+    try {
+        // Инициализация Firebase
+        await initializeFirebase();
+        
+        // Проверка существующей авторизации
+        checkExistingAuth();
+        
+        // Создание демо пользователей
+        await createDemoUsers();
+        
+        // Настройка обработчиков событий
+        setupEventHandlers();
+        
+        console.log('✅ auth.js загружен успешно');
+    } catch (error) {
+        console.error('❌ Ошибка инициализации auth.js:', error);
+        showNotification('Ошибка инициализации системы', 'error');
+    }
 });
+
+// ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
+async function initializeFirebase() {
+    try {
+        // Проверяем, что firebaseConfig доступен
+        if (!window.firebaseConfig) {
+            throw new Error('Firebase конфигурация не найдена');
+        }
+
+        // Импортируем Firebase модули
+        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        const { 
+            getDatabase, 
+            ref, 
+            set, 
+            get, 
+            update
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js');
+
+        // Инициализируем Firebase
+        const app = initializeApp(window.firebaseConfig);
+        database = getDatabase(app);
+        
+        // Сохраняем функции для использования
+        dbRef = ref;
+        dbSet = set;
+        dbGet = get;
+        dbUpdate = update;
+        
+        console.log('🔥 Firebase инициализирован');
+    } catch (error) {
+        console.error('🔥 Ошибка инициализации Firebase:', error);
+        throw error;
+    }
+}
 
 function checkExistingAuth() {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
-        // Пользователь уже авторизован
+        console.log('👤 Найден сохраненный пользователь, перенаправление...');
         window.location.href = 'main.html';
     }
 }
@@ -42,12 +76,20 @@ function checkExistingAuth() {
 // ===== СОЗДАНИЕ ДЕМО ПОЛЬЗОВАТЕЛЕЙ =====
 async function createDemoUsers() {
     try {
+        console.log('👥 Проверка демо пользователей...');
+        
         const usersRef = dbRef(database, 'users');
         const snapshot = await dbGet(usersRef);
         
-        if (!snapshot.exists()) {
-            // Создать демо пользователей
-            const demoUsers = {
+        // Проверяем, есть ли демо пользователи
+        const existingUsers = snapshot.exists() ? snapshot.val() : {};
+        const demoUsers = ['admin', 'user1', 'moderator1'];
+        const missingUsers = demoUsers.filter(username => !existingUsers[username]);
+        
+        if (missingUsers.length > 0) {
+            console.log('➕ Создание отсутствующих демо пользователей:', missingUsers);
+            
+            const demoUsersData = {
                 'admin': {
                     password: 'admin123',
                     role: 'admin',
@@ -74,29 +116,57 @@ async function createDemoUsers() {
                 }
             };
             
-            await dbSet(usersRef, demoUsers);
-            console.log('Демо пользователи созданы');
+            // Создаем только отсутствующих пользователей
+            for (const username of missingUsers) {
+                const userRef = dbRef(database, `users/${username}`);
+                await dbSet(userRef, demoUsersData[username]);
+                console.log(`✅ Создан пользователь: ${username}`);
+            }
+        } else {
+            console.log('✅ Все демо пользователи уже существуют');
         }
     } catch (error) {
-        console.error('Ошибка создания демо пользователей:', error);
+        console.error('❌ Ошибка создания демо пользователей:', error);
     }
+}
+
+// ===== НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ =====
+function setupEventHandlers() {
+    // Обработчик Enter для полей ввода
+    document.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            const activeElement = document.activeElement;
+            
+            if (activeElement && activeElement.id === 'loginPassword') {
+                attemptLogin();
+            } else if (activeElement && activeElement.id === 'registerConfirmPassword') {
+                attemptRegister();
+            }
+        }
+    });
+    
+    console.log('⌨️ Обработчики событий настроены');
 }
 
 // ===== УПРАВЛЕНИЕ ФОРМАМИ =====
 window.showRegisterForm = function() {
+    console.log('📝 Показ формы регистрации');
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('register-form').classList.add('active');
 };
 
 window.showLoginForm = function() {
+    console.log('🔑 Показ формы входа');
     document.getElementById('register-form').classList.remove('active');
     document.getElementById('login-form').style.display = 'block';
 };
 
 // ===== АУТЕНТИФИКАЦИЯ =====
 window.attemptLogin = async function() {
-    const username = document.getElementById('loginUsername').value.trim();
-    const password = document.getElementById('loginPassword').value.trim();
+    console.log('🔑 Попытка входа...');
+    
+    const username = document.getElementById('loginUsername')?.value?.trim();
+    const password = document.getElementById('loginPassword')?.value?.trim();
     
     if (!username || !password) {
         showNotification('Заполните все поля', 'error');
@@ -104,22 +174,28 @@ window.attemptLogin = async function() {
     }
     
     try {
+        console.log(`👤 Попытка входа для пользователя: ${username}`);
+        
         const userRef = dbRef(database, `users/${username}`);
         const snapshot = await dbGet(userRef);
         
         if (!snapshot.exists()) {
+            console.log(`❌ Пользователь ${username} не найден`);
             showNotification('Пользователь не найден', 'error');
             return;
         }
         
         const userData = snapshot.val();
+        console.log(`📋 Данные пользователя ${username}:`, { role: userData.role, status: userData.status });
         
         if (userData.password !== password) {
+            console.log(`❌ Неверный пароль для пользователя ${username}`);
             showNotification('Неверный пароль', 'error');
             return;
         }
         
         if (userData.status === 'inactive') {
+            console.log(`🚫 Аккаунт ${username} заблокирован`);
             showNotification('Ваш аккаунт заблокирован', 'error');
             return;
         }
@@ -130,6 +206,7 @@ window.attemptLogin = async function() {
         };
         
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        console.log(`✅ Успешный вход пользователя ${username}`);
         
         showNotification('Вход выполнен успешно!', 'success');
         
@@ -138,15 +215,17 @@ window.attemptLogin = async function() {
         }, 1000);
         
     } catch (error) {
-        console.error('Ошибка входа:', error);
-        showNotification('Ошибка подключения к серверу', 'error');
+        console.error('❌ Ошибка входа:', error);
+        showNotification('Ошибка подключения к серверу: ' + error.message, 'error');
     }
 };
 
 window.attemptRegister = async function() {
-    const username = document.getElementById('registerUsername').value.trim();
-    const password = document.getElementById('registerPassword').value.trim();
-    const confirmPassword = document.getElementById('registerConfirmPassword').value.trim();
+    console.log('📝 Попытка регистрации...');
+    
+    const username = document.getElementById('registerUsername')?.value?.trim();
+    const password = document.getElementById('registerPassword')?.value?.trim();
+    const confirmPassword = document.getElementById('registerConfirmPassword')?.value?.trim();
     
     if (!username || !password || !confirmPassword) {
         showNotification('Заполните все поля', 'error');
@@ -169,10 +248,13 @@ window.attemptRegister = async function() {
     }
     
     try {
+        console.log(`📝 Попытка регистрации пользователя: ${username}`);
+        
         const userRef = dbRef(database, `users/${username}`);
         const snapshot = await dbGet(userRef);
         
         if (snapshot.exists()) {
+            console.log(`❌ Пользователь ${username} уже существует`);
             showNotification('Пользователь с таким логином уже существует', 'error');
             return;
         }
@@ -187,6 +269,7 @@ window.attemptRegister = async function() {
         };
         
         await dbSet(userRef, newUser);
+        console.log(`✅ Пользователь ${username} зарегистрирован`);
         
         showNotification('Регистрация прошла успешно! Теперь войдите в систему.', 'success');
         
@@ -200,21 +283,87 @@ window.attemptRegister = async function() {
         }, 2000);
         
     } catch (error) {
-        console.error('Ошибка регистрации:', error);
-        showNotification('Ошибка подключения к серверу', 'error');
+        console.error('❌ Ошибка регистрации:', error);
+        showNotification('Ошибка подключения к серверу: ' + error.message, 'error');
     }
 };
 
 // ===== УВЕДОМЛЕНИЯ =====
 function showNotification(message, type = 'error') {
+    console.log(`📢 Уведомление (${type}): ${message}`);
+    
+    // Удаляем предыдущие уведомления
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => notification.remove());
+    
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;
     
+    // Добавляем кнопку закрытия
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '×';
+    closeButton.style.cssText = `
+        position: absolute;
+        top: 5px;
+        right: 10px;
+        background: none;
+        border: none;
+        color: white;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 0;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    closeButton.onclick = () => notification.remove();
+    
+    notification.style.position = 'relative';
+    notification.style.paddingRight = '40px';
+    notification.appendChild(closeButton);
+    
     document.body.appendChild(notification);
     
+    // Автоудаление через 5 секунд
     setTimeout(() => {
-        notification.style.animation = 'slideIn 0.3s ease reverse';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+        if (notification.parentNode) {
+            notification.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, 5000);
 }
+
+// ===== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ОТЛАДКИ =====
+window.testFirebaseConnection = async function() {
+    try {
+        console.log('🧪 Тестирование подключения к Firebase...');
+        const testRef = dbRef(database, 'test');
+        await dbSet(testRef, { timestamp: Date.now(), test: true });
+        console.log('✅ Firebase подключение работает');
+        showNotification('Firebase подключение работает!', 'success');
+    } catch (error) {
+        console.error('❌ Ошибка подключения к Firebase:', error);
+        showNotification('Ошибка подключения к Firebase: ' + error.message, 'error');
+    }
+};
+
+window.showDemoAccounts = function() {
+    const demoAccounts = [
+        { username: 'admin', password: 'admin123', role: 'Администратор' },
+        { username: 'user1', password: 'user123', role: 'Пользователь' },
+        { username: 'moderator1', password: 'mod123', role: 'Модератор' }
+    ];
+    
+    console.log('👥 Демо аккаунты:');
+    demoAccounts.forEach(account => {
+        console.log(`   ${account.role}: ${account.username} / ${account.password}`);
+    });
+};
+
+// Вызываем показ демо аккаунтов при загрузке для удобства
+setTimeout(() => {
+    window.showDemoAccounts();
+}, 1000);
