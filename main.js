@@ -177,7 +177,7 @@ function getCategoryName(category) {
 }
 
 // ===== ФИЛЬТРАЦИЯ СОБЫТИЙ =====
-window.filterEvents = function(category) {
+function filterEvents(category) {
     // Обновить активный фильтр
     document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
@@ -186,7 +186,7 @@ window.filterEvents = function(category) {
 };
 
 // ===== КОРЗИНА СТАВОК =====
-window.selectOption = function(eventId, option, coefficient) {
+function selectOption(eventId, option, coefficient) {
     if (!currentUser) {
         showNotification('Войдите в систему для размещения ставок', 'error');
         return;
@@ -272,19 +272,19 @@ function updateBetSlipDisplay() {
     `;
 }
 
-window.removeFromBetSlip = function(index) {
+function removeFromBetSlip(index) {
     betSlip.splice(index, 1);
     updateBetSlipDisplay();
     showNotification('Удалено из корзины', 'warning');
 };
 
-window.clearBetSlip = function() {
+function clearBetSlip() {
     betSlip = [];
     updateBetSlipDisplay();
     showNotification('Корзина очищена', 'warning');
 };
 
-window.updatePotentialWin = function() {
+function updatePotentialWin() {
     const amount = parseFloat(document.getElementById('bet-amount').value) || 0;
     const totalCoefficient = betSlip.reduce((total, bet) => total * bet.coefficient, 1);
     const potentialWin = amount * totalCoefficient;
@@ -299,7 +299,7 @@ window.updatePotentialWin = function() {
 };
 
 // ===== РАЗМЕЩЕНИЕ СТАВОК =====
-window.placeBet = async function(type) {
+async function placeBet(type) {
     if (!currentUser) {
         showNotification('Войдите в систему', 'error');
         return;
@@ -394,7 +394,16 @@ function showNotification(message, type = 'info') {
 }
 
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
-window.logout = function() {
+function logout() {
     localStorage.removeItem('currentUser');
     window.location.href = 'login.html';
-};
+}
+
+// Экспортируем функции в глобальную область видимости
+window.filterEvents = filterEvents;
+window.selectOption = selectOption;
+window.removeFromBetSlip = removeFromBetSlip;
+window.clearBetSlip = clearBetSlip;
+window.updatePotentialWin = updatePotentialWin;
+window.placeBet = placeBet;
+window.logout = logout;
