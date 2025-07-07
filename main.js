@@ -60,10 +60,10 @@ function checkAuth() {
 function updateUserInfo() {
     if (!currentUser) return;
 
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
+    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
     document.getElementById('username').textContent = currentUser.username;
 
-    const btn = document.getElementById('dailyBonusBtn');
+    const btn = document.getElementById('daily-bonus-btn');
     if (btn) {
         btn.disabled = hasClaimedToday();
     }
@@ -307,11 +307,11 @@ function updatePotentialWin() {
     const potentialWinDiv = document.getElementById('potential-win');
     if (amount > 0) {
         potentialWinDiv.style.display = 'block';
-        potentialWinDiv.textContent = `Возможный выигрыш: ${potentialWin.toFixed(2)} монет`;
+        potentialWinDiv.textContent = `Возможный выигрыш: ${potentialWin.toFixed(2)} лупанчиков`;
     } else {
         potentialWinDiv.style.display = 'none';
     }
-};
+}
 
 // ===== РАЗМЕЩЕНИЕ СТАВОК =====
 async function placeBet(type) {
@@ -535,9 +535,12 @@ function ensureDailyBonus() {
 }
 
 function hasClaimedToday() {
-    if (!currentUser) return false;
-    const today = new Date().toISOString().split('T')[0];
-    return currentUser.lastBonusDate === today;
+    if (!currentUser.dailyBonus) return false;
+    const last = new Date(currentUser.dailyBonus.lastClaim);
+    const now = new Date();
+    return last.getFullYear() === now.getFullYear() &&
+           last.getMonth() === now.getMonth() &&
+           last.getDate() === now.getDate();
 }
 
 function renderDailyBonusCalendar() {
