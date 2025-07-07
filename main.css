@@ -263,40 +263,44 @@
     }
 }
 
-/* ===== ЕЖЕДНЕВНЫЙ БОНУС ===== */
-.calendar {
+
+/* ===== DAILY BONUS ===== */
+#daily-bonus-btn {
+    margin-left: 10px;
+    padding: 6px 12px;
+    font-size: 14px;
+}
+
+.calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 5px;
-    margin-top: 20px;
+    margin-top: 10px;
 }
 
 .calendar-day {
     background: rgba(255, 255, 255, 0.1);
-    padding: 10px;
-    text-align: center;
-    border-radius: 8px;
-    font-size: 14px;
+
+    border: none;
+    color: #fff;
+    padding: 8px;
+    border-radius: 6px;
+    white-space: pre-line;
 }
 
-.calendar-day.claimable {
+.calendar-day.today {
+    background: #4fc3f7;
     cursor: pointer;
-    background: rgba(79, 195, 247, 0.3);
 }
 
-.calendar-day.claimed {
-    background: rgba(76, 175, 80, 0.3);
+.calendar-day:disabled {
+    opacity: 0.4;
 }
 
-.calendar-day.disabled {
-    opacity: 0.3;
-}
-
-.calendar-day.current-day {
-    border: 2px solid #4fc3f7;
-}
+/* ===== МОДАЛЬНЫЕ ОКНА ===== */
 
 /* Модальное окно */
+
 .modal {
     display: none;
     position: fixed;
