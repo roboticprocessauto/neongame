@@ -60,10 +60,10 @@ function checkAuth() {
 function updateUserInfo() {
     if (!currentUser) return;
 
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
+    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
     document.getElementById('username').textContent = currentUser.username;
 
-    const btn = document.getElementById('daily-bonus-btn');
+    const btn = document.getElementById('dailyBonusBtn');
     if (btn) {
         btn.disabled = hasClaimedToday();
     }
@@ -198,7 +198,7 @@ function filterEvents(category) {
     event.target.classList.add('active');
     
     displayEvents(category);
-};
+}
 
 // ===== КОРЗИНА СТАВОК =====
 function selectOption(eventId, option, coefficient) {
@@ -233,7 +233,7 @@ function selectOption(eventId, option, coefficient) {
 
     updateBetSlipDisplay();
     showNotification('Добавлено в корзину ставок', 'success');
-};
+}
 
 function updateBetSlipDisplay() {
     const container = document.getElementById('bet-slip-content');
@@ -291,13 +291,13 @@ function removeFromBetSlip(index) {
     betSlip.splice(index, 1);
     updateBetSlipDisplay();
     showNotification('Удалено из корзины', 'warning');
-};
+}
 
 function clearBetSlip() {
     betSlip = [];
     updateBetSlipDisplay();
     showNotification('Корзина очищена', 'warning');
-};
+}
 
 function updatePotentialWin() {
     const amount = parseFloat(document.getElementById('bet-amount').value) || 0;
@@ -307,7 +307,7 @@ function updatePotentialWin() {
     const potentialWinDiv = document.getElementById('potential-win');
     if (amount > 0) {
         potentialWinDiv.style.display = 'block';
-        potentialWinDiv.textContent = `Возможный выигрыш: ${potentialWin.toFixed(2)} лупанчиков`;
+        potentialWinDiv.textContent = `Возможный выигрыш: ${potentialWin.toFixed(2)} монет`;
     } else {
         potentialWinDiv.style.display = 'none';
     }
@@ -392,7 +392,7 @@ async function placeBet(type) {
         console.error('Ошибка размещения ставки:', error);
         showNotification('Ошибка размещения ставки', 'error');
     }
-};
+}
 
 // ===== УВЕДОМЛЕНИЯ =====
 function showNotification(message, type = 'info') {
@@ -535,12 +535,9 @@ function ensureDailyBonus() {
 }
 
 function hasClaimedToday() {
-    if (!currentUser.dailyBonus) return false;
-    const last = new Date(currentUser.dailyBonus.lastClaim);
-    const now = new Date();
-    return last.getFullYear() === now.getFullYear() &&
-           last.getMonth() === now.getMonth() &&
-           last.getDate() === now.getDate();
+    if (!currentUser) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return currentUser.lastBonusDate === today;
 }
 
 function renderDailyBonusCalendar() {
