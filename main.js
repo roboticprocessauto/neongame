@@ -1,7 +1,4 @@
-if (currentUser.role === "admin") {
-        document.getElementById("admin-link").style.display = "block";
-    } else if (currentUser.role === "moderator") {
-        document.getElementById("moderator-link").style.display = "block";// ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
+// ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { 
     getDatabase, 
