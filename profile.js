@@ -43,7 +43,7 @@ function checkAuth() {
 function updateUserInfo() {
     if (!currentUser) return;
     
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
+    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
     document.getElementById('username').textContent = currentUser.username;
 }
 
@@ -53,8 +53,8 @@ function displayProfileInfo() {
     
     document.getElementById('profile-username').textContent = currentUser.username;
     document.getElementById('profile-role').textContent = getRoleName(currentUser.role);
-    document.getElementById('profile-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
-    document.getElementById('profile-bet-limit').textContent = `${(currentUser.betLimit || 1000).toLocaleString()} монет`;
+    document.getElementById('profile-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
+    document.getElementById('profile-bet-limit').textContent = `${(currentUser.betLimit || 1000).toLocaleString()} лупанчиков`;
     
     if (currentUser.registeredAt) {
         const regDate = new Date(currentUser.registeredAt).toLocaleDateString();
