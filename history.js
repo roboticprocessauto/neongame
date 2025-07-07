@@ -41,7 +41,7 @@ function checkAuth() {
 function updateUserInfo() {
     if (!currentUser) return;
     
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
+    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
     document.getElementById('username').textContent = currentUser.username;
 }
 
@@ -133,7 +133,7 @@ function displayUserStats() {
         </div>
         <div class="stat-card">
             <div class="stat-number ${profit >= 0 ? 'positive' : 'negative'}">${profit >= 0 ? '+' : ''}${profit}</div>
-            <div class="stat-label">Прибыль (монеты)</div>
+            <div class="stat-label">Прибыль (лупанчики)</div>
         </div>
     `;
 }
@@ -166,7 +166,7 @@ function displayBets() {
                     </div>
                     <div class="bet-info-item">
                         <div class="bet-info-label">Сумма</div>
-                        <div class="bet-info-value">${bet.amount} монет</div>
+                        <div class="bet-info-value">${bet.amount} лупанчиков</div>
                     </div>
                     <div class="bet-info-item">
                         <div class="bet-info-label">Коэффициент</div>
@@ -174,18 +174,18 @@ function displayBets() {
                     </div>
                     <div class="bet-info-item">
                         <div class="bet-info-label">Возможный выигрыш</div>
-                        <div class="bet-info-value">${potentialWin} монет</div>
+                        <div class="bet-info-value">${potentialWin} лупанчиков</div>
                     </div>
                     ${bet.status === 'won' ? `
                         <div class="bet-info-item">
                             <div class="bet-info-label">Фактический выигрыш</div>
-                            <div class="bet-info-value positive">${actualWin} монет</div>
+                            <div class="bet-info-value positive">${actualWin} лупанчиков</div>
                         </div>
                     ` : ''}
                     ${bet.status === 'lost' ? `
                         <div class="bet-info-item">
                             <div class="bet-info-label">Проигрыш</div>
-                            <div class="bet-info-value negative">-${bet.amount} монет</div>
+                            <div class="bet-info-value negative">-${bet.amount} лупанчиков</div>
                         </div>
                     ` : ''}
                     <div class="bet-info-item">

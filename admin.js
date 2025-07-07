@@ -70,7 +70,7 @@ function checkAuth() {
 function updateUserInfo() {
     if (!currentUser) return;
     
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
+    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
     document.getElementById('username').textContent = currentUser.username;
 }
 
@@ -531,9 +531,9 @@ async function viewBet(betId) {
             <strong>ID ставки:</strong> ${betId}<br>
             <strong>Пользователь:</strong> ${bet.user}<br>
             <strong>Тип:</strong> ${bet.type === 'single' ? 'Одиночная' : 'Экспресс'}<br>
-            <strong>Сумма:</strong> ${bet.amount} монет<br>
+            <strong>Сумма:</strong> ${bet.amount} лупанчиков<br>
             <strong>Коэффициент:</strong> ${bet.coefficient}<br>
-            <strong>Возможный выигрыш:</strong> ${potentialWin} монет<br>
+            <strong>Возможный выигрыш:</strong> ${potentialWin} лупанчиков<br>
             <strong>Статус:</strong> ${getBetStatusName(bet.status)}<br>
             <strong>Дата:</strong> ${new Date(bet.timestamp).toLocaleString()}
         </div>
@@ -547,8 +547,8 @@ async function viewBet(betId) {
             `).join('')}
         </div>
         
-        ${bet.status === 'won' ? `<div style="color: #4caf50;"><strong>Фактический выигрыш:</strong> ${actualWin} монет</div>` : ''}
-        ${bet.status === 'lost' ? `<div style="color: #f44336;"><strong>Проигрыш:</strong> ${bet.amount} монет</div>` : ''}
+        ${bet.status === 'won' ? `<div style="color: #4caf50;"><strong>Фактический выигрыш:</strong> ${actualWin} лупанчиков</div>` : ''}
+        ${bet.status === 'lost' ? `<div style="color: #f44336;"><strong>Проигрыш:</strong> ${bet.amount} лупанчиков</div>` : ''}
     `;
     
     const modal = document.getElementById('viewBetModal');
@@ -785,7 +785,7 @@ async function resetAllBalances() {
             await dbUpdate(userRef, { balance: defaultBalance });
         }
         
-        showNotification(`Все балансы сброшены на ${defaultBalance} монет!`, 'success');
+        showNotification(`Все балансы сброшены на ${defaultBalance} лупанчиков!`, 'success');
         loadUsers();
         
     } catch (error) {

@@ -58,10 +58,10 @@ function checkAuth() {
 function updateUserInfo() {
     if (!currentUser) return;
 
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
+    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
     document.getElementById('username').textContent = currentUser.username;
 
-    const btn = document.getElementById('dailyBonusBtn');
+    const btn = document.getElementById('daily-bonus-btn');
     if (btn) {
         btn.disabled = hasClaimedToday();
     }
@@ -305,7 +305,7 @@ function updatePotentialWin() {
     const potentialWinDiv = document.getElementById('potential-win');
     if (amount > 0) {
         potentialWinDiv.style.display = 'block';
-        potentialWinDiv.textContent = `Возможный выигрыш: ${potentialWin.toFixed(2)} монет`;
+        potentialWinDiv.textContent = `Возможный выигрыш: ${potentialWin.toFixed(2)} лупанчиков`;
     } else {
         potentialWinDiv.style.display = 'none';
     }
@@ -326,7 +326,7 @@ async function placeBet(type) {
     const amount = parseInt(document.getElementById('bet-amount').value);
 
     if (!amount || amount < settings.minBetAmount) {
-        showNotification(`Минимальная ставка: ${settings.minBetAmount} монет`, 'error');
+        showNotification(`Минимальная ставка: ${settings.minBetAmount} лупанчиков`, 'error');
         return;
     }
 
@@ -336,7 +336,7 @@ async function placeBet(type) {
     }
 
     if (amount > (currentUser.betLimit || settings.maxBetAmount)) {
-        showNotification(`Превышен лимит ставки: ${currentUser.betLimit || settings.maxBetAmount} монет`, 'error');
+        showNotification(`Превышен лимит ставки: ${currentUser.betLimit || settings.maxBetAmount} лупанчиков`, 'error');
         return;
     }
 
@@ -417,7 +417,7 @@ function updateDailyBonusButton() {
     } else {
         const reward = dailyRewards[getNextBonusIndex()];
         btn.disabled = false;
-        btn.textContent = `Получить ${reward} монет`;
+        btn.textContent = `Получить ${reward} лупанчиков`;
     }
 }
 
@@ -454,24 +454,24 @@ function closeDailyBonusModal() {
 function generateBonusCalendar() {
     const calendar = document.getElementById('bonus-calendar');
     if (!calendar) return;
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
     calendar.innerHTML = '';
 
-    for (let day = 1; day <= daysInMonth; day++) {
+    const nextIndex = getNextBonusIndex();
+    const claimed = hasClaimedToday();
+
+    for (let i = 0; i < dailyRewards.length; i++) {
         const dayButton = document.createElement('button');
         dayButton.className = 'calendar-day';
-        const rewardIndex = (day - 1) % dailyRewards.length;
-        const reward = dailyRewards[rewardIndex];
-        dayButton.textContent = `${day}\n${reward} монет`;
-        if (day === now.getDate()) {
+        const reward = dailyRewards[i];
+        dayButton.textContent = `${i + 1}\n${reward} лупанчиков`;
+
+        if (i === nextIndex && !claimed) {
             dayButton.classList.add('today');
             dayButton.onclick = claimDailyBonus;
         } else {
             dayButton.disabled = true;
         }
+
         calendar.appendChild(dayButton);
     }
 }
@@ -511,7 +511,7 @@ async function claimDailyBonus() {
         updateUserInfo();
         updateDailyBonusButton();
         closeDailyBonusModal();
-        showNotification(`Вы получили ${reward} монет!`, 'success');
+        showNotification(`Вы получили ${reward} лупанчиков!`, 'success');
     } catch (error) {
         console.error('Ошибка начисления бонуса:', error);
         showNotification('Не удалось получить бонус', 'error');
