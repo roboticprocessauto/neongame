@@ -434,7 +434,7 @@ function getNextBonusIndex() {
     return 0;
 }
 
-function showDailyBonusModal() {
+function openDailyBonusModal() {
     generateBonusCalendar();
     const modal = document.getElementById('dailyBonusModal');
     if (modal) modal.style.display = 'block';
@@ -457,7 +457,7 @@ function generateBonusCalendar() {
     for (let day = 1; day <= daysInMonth; day++) {
         const dayButton = document.createElement('button');
         dayButton.className = 'calendar-day';
-        const rewardIndex = getNextBonusIndex();
+        const rewardIndex = (day - 1) % dailyRewards.length;
         const reward = dailyRewards[rewardIndex];
         dayButton.textContent = `${day}\n${reward} монет`;
         if (day === now.getDate()) {
@@ -526,5 +526,5 @@ window.clearBetSlip = clearBetSlip;
 window.updatePotentialWin = updatePotentialWin;
 window.placeBet = placeBet;
 window.logout = logout;
-window.showDailyBonusModal = showDailyBonusModal;
+window.openDailyBonusModal = openDailyBonusModal;
 window.closeDailyBonusModal = closeDailyBonusModal;
