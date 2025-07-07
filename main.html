@@ -16,13 +16,13 @@
                 Баланс: <span id="user-balance">0 монет</span>
                 <button id="daily-bonus-btn" class="btn" style="margin-left:10px;" onclick="openDailyBonusModal()">Получить ежедневную награду</button>
             </div>
+            <button id="dailyBonusBtn" class="btn btn-success" onclick="openDailyBonusModal()">Получить награду</button>
             <div class="user-menu">
                 <span>Привет, <span id="username">Пользователь</span>!</span>
                 <button class="btn btn-secondary" onclick="logout()" style="padding: 8px 16px; width: auto;">Выйти</button>
             </div>
         </div>
     </div>
-
     <!-- Навигация -->
     <div class="navigation">
         <a href="main.html" class="nav-tab active">📅 События</a>
@@ -30,7 +30,6 @@
         <a href="profile.html" class="nav-tab">👤 Профиль</a>
         <a href="admin.html" class="nav-tab" id="admin-link" style="display: none;">🛠️ Админ панель</a>
     </div>
-
     <!-- Основной контент -->
     <div class="main-content">
         <!-- Секция событий -->
@@ -47,13 +46,11 @@
                 <button class="filter-btn" onclick="filterEvents('weather')">🌤️ Погода</button>
                 <button class="filter-btn" onclick="filterEvents('society')">👥 Общество</button>
             </div>
-
             <!-- Список событий -->
             <div id="events-container" class="events-grid">
                 <div class="loading">Загрузка событий...</div>
             </div>
         </div>
-
         <!-- Корзина ставок -->
         <div class="bet-slip-section">
             <h3 class="section-title" style="font-size: 20px;">Корзина ставок</h3>
@@ -65,7 +62,6 @@
             </div>
         </div>
     </div>
-
     <div id="dailyBonusModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeDailyBonusModal()">&times;</span>
@@ -73,7 +69,6 @@
             <div id="bonus-calendar" class="calendar-grid"></div>
         </div>
     </div>
-
     <script src="firebase-config.js"></script>
     <script type="module" src="main.js"></script>
 </body>
