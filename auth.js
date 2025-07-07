@@ -17,8 +17,6 @@ window.addEventListener('DOMContentLoaded', async function() {
         // Проверка существующей авторизации
         checkExistingAuth();
         
-        // Создание демо пользователей
-        await createDemoUsers();
         
         // Настройка обработчиков событий
         setupEventHandlers();
@@ -73,62 +71,6 @@ function checkExistingAuth() {
     }
 }
 
-// ===== СОЗДАНИЕ ДЕМО ПОЛЬЗОВАТЕЛЕЙ =====
-async function createDemoUsers() {
-    try {
-        console.log('👥 Проверка демо пользователей...');
-        
-        const usersRef = dbRef(database, 'users');
-        const snapshot = await dbGet(usersRef);
-        
-        // Проверяем, есть ли демо пользователи
-        const existingUsers = snapshot.exists() ? snapshot.val() : {};
-        const demoUsers = ['admin', 'user1', 'moderator1'];
-        const missingUsers = demoUsers.filter(username => !existingUsers[username]);
-        
-        if (missingUsers.length > 0) {
-            console.log('➕ Создание отсутствующих демо пользователей:', missingUsers);
-            
-            const demoUsersData = {
-                'admin': {
-                    password: 'admin123',
-                    role: 'admin',
-                    balance: 50000,
-                    betLimit: 10000,
-                    registeredAt: Date.now(),
-                    status: 'active'
-                },
-                'user1': {
-                    password: 'user123',
-                    role: 'user',
-                    balance: 5000,
-                    betLimit: 1000,
-                    registeredAt: Date.now(),
-                    status: 'active'
-                },
-                'moderator1': {
-                    password: 'mod123',
-                    role: 'moderator',
-                    balance: 15000,
-                    betLimit: 5000,
-                    registeredAt: Date.now(),
-                    status: 'active'
-                }
-            };
-            
-            // Создаем только отсутствующих пользователей
-            for (const username of missingUsers) {
-                const userRef = dbRef(database, `users/${username}`);
-                await dbSet(userRef, demoUsersData[username]);
-                console.log(`✅ Создан пользователь: ${username}`);
-            }
-        } else {
-            console.log('✅ Все демо пользователи уже существуют');
-        }
-    } catch (error) {
-        console.error('❌ Ошибка создания демо пользователей:', error);
-    }
-}
 
 // ===== НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ =====
 function setupEventHandlers() {
