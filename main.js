@@ -46,8 +46,10 @@ function checkAuth() {
     
     currentUser = JSON.parse(savedUser);
     updateUserInfo();
+
     updateDailyBonusButton();
     
+
     // Показать админ ссылку если пользователь админ/модератор
     if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
         document.getElementById('admin-link').style.display = 'block';
@@ -56,9 +58,14 @@ function checkAuth() {
 
 function updateUserInfo() {
     if (!currentUser) return;
-    
+
     document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} монет`;
     document.getElementById('username').textContent = currentUser.username;
+
+    const btn = document.getElementById('dailyBonusBtn');
+    if (btn) {
+        btn.disabled = hasClaimedToday();
+    }
 }
 
 // ===== ЗАГРУЗКА НАСТРОЕК =====
@@ -518,6 +525,98 @@ function logout() {
     window.location.href = 'login.html';
 }
 
+// ===== ЕЖЕДНЕВНЫЙ БОНУС =====
+function ensureDailyBonus() {
+    if (!currentUser.dailyBonus) {
+        currentUser.dailyBonus = { lastClaim: 0, streak: 0 };
+    }
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+}
+
+function hasClaimedToday() {
+    if (!currentUser.dailyBonus) return false;
+    const last = new Date(currentUser.dailyBonus.lastClaim);
+    const now = new Date();
+    return last.getFullYear() === now.getFullYear() &&
+           last.getMonth() === now.getMonth() &&
+           last.getDate() === now.getDate();
+}
+
+function openDailyBonusModal() {
+    renderDailyBonusCalendar();
+    const modal = document.getElementById('dailyBonusModal');
+    if (modal) modal.style.display = 'block';
+}
+
+function closeDailyBonusModal() {
+    const modal = document.getElementById('dailyBonusModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function renderDailyBonusCalendar() {
+    const calendar = document.getElementById('dailyBonusCalendar');
+    if (!calendar) return;
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const days = new Date(year, month + 1, 0).getDate();
+
+    calendar.innerHTML = '';
+    for (let d = 1; d <= days; d++) {
+        const dayEl = document.createElement('div');
+        dayEl.className = 'calendar-day';
+        dayEl.textContent = d;
+
+        if (d === now.getDate()) {
+            dayEl.classList.add('current-day');
+            if (hasClaimedToday()) {
+                dayEl.classList.add('claimed');
+            } else {
+                dayEl.classList.add('claimable');
+                dayEl.addEventListener('click', claimDailyBonus);
+            }
+        } else if (d < now.getDate()) {
+            dayEl.classList.add('claimed');
+        } else {
+            dayEl.classList.add('disabled');
+        }
+
+        calendar.appendChild(dayEl);
+    }
+}
+
+async function claimDailyBonus() {
+    if (hasClaimedToday()) {
+        showNotification('Бонус уже получен сегодня', 'warning');
+        return;
+    }
+
+    const bonus = 250;
+    const userRef = dbRef(database, `users/${currentUser.username}`);
+
+    try {
+        const newBalance = (currentUser.balance || 0) + bonus;
+        let streak = (currentUser.dailyBonus?.streak || 0) + 1;
+        if (streak > 7) streak = 1;
+
+        await dbUpdate(userRef, {
+            balance: newBalance,
+            dailyBonus: { lastClaim: Date.now(), streak: streak }
+        });
+
+        currentUser.balance = newBalance;
+        currentUser.dailyBonus = { lastClaim: Date.now(), streak: streak };
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        updateUserInfo();
+        showNotification(`Вы получили ${bonus} монет!`, 'success');
+        renderDailyBonusCalendar();
+    } catch (error) {
+        console.error('Ошибка получения бонуса:', error);
+        showNotification('Не удалось получить бонус', 'error');
+    }
+}
+
 // Экспортируем функции в глобальную область видимости
 window.filterEvents = filterEvents;
 window.selectOption = selectOption;
@@ -526,5 +625,8 @@ window.clearBetSlip = clearBetSlip;
 window.updatePotentialWin = updatePotentialWin;
 window.placeBet = placeBet;
 window.logout = logout;
+
 window.showDailyBonusModal = showDailyBonusModal;
+
+
 window.closeDailyBonusModal = closeDailyBonusModal;

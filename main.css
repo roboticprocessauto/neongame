@@ -263,6 +263,7 @@
     }
 }
 
+
 /* ===== DAILY BONUS ===== */
 #daily-bonus-btn {
     margin-left: 10px;
@@ -279,6 +280,7 @@
 
 .calendar-day {
     background: rgba(255, 255, 255, 0.1);
+
     border: none;
     color: #fff;
     padding: 8px;
@@ -296,6 +298,9 @@
 }
 
 /* ===== МОДАЛЬНЫЕ ОКНА ===== */
+
+/* Модальное окно */
+
 .modal {
     display: none;
     position: fixed;
