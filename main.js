@@ -46,7 +46,6 @@ function checkAuth() {
     
     currentUser = JSON.parse(savedUser);
     updateUserInfo();
-
     updateDailyBonusButton();
     
 
@@ -441,7 +440,7 @@ function getNextBonusIndex() {
     return 0;
 }
 
-function showDailyBonusModal() {
+function openDailyBonusModal() {
     generateBonusCalendar();
     const modal = document.getElementById('dailyBonusModal');
     if (modal) modal.style.display = 'block';
@@ -464,7 +463,7 @@ function generateBonusCalendar() {
     for (let day = 1; day <= daysInMonth; day++) {
         const dayButton = document.createElement('button');
         dayButton.className = 'calendar-day';
-        const rewardIndex = getNextBonusIndex();
+        const rewardIndex = (day - 1) % dailyRewards.length;
         const reward = dailyRewards[rewardIndex];
         dayButton.textContent = `${day}\n${reward} монет`;
         if (day === now.getDate()) {
@@ -542,17 +541,6 @@ function hasClaimedToday() {
            last.getDate() === now.getDate();
 }
 
-function openDailyBonusModal() {
-    renderDailyBonusCalendar();
-    const modal = document.getElementById('dailyBonusModal');
-    if (modal) modal.style.display = 'block';
-}
-
-function closeDailyBonusModal() {
-    const modal = document.getElementById('dailyBonusModal');
-    if (modal) modal.style.display = 'none';
-}
-
 function renderDailyBonusCalendar() {
     const calendar = document.getElementById('dailyBonusCalendar');
     if (!calendar) return;
@@ -586,37 +574,6 @@ function renderDailyBonusCalendar() {
     }
 }
 
-async function claimDailyBonus() {
-    if (hasClaimedToday()) {
-        showNotification('Бонус уже получен сегодня', 'warning');
-        return;
-    }
-
-    const bonus = 250;
-    const userRef = dbRef(database, `users/${currentUser.username}`);
-
-    try {
-        const newBalance = (currentUser.balance || 0) + bonus;
-        let streak = (currentUser.dailyBonus?.streak || 0) + 1;
-        if (streak > 7) streak = 1;
-
-        await dbUpdate(userRef, {
-            balance: newBalance,
-            dailyBonus: { lastClaim: Date.now(), streak: streak }
-        });
-
-        currentUser.balance = newBalance;
-        currentUser.dailyBonus = { lastClaim: Date.now(), streak: streak };
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        updateUserInfo();
-        showNotification(`Вы получили ${bonus} монет!`, 'success');
-        renderDailyBonusCalendar();
-    } catch (error) {
-        console.error('Ошибка получения бонуса:', error);
-        showNotification('Не удалось получить бонус', 'error');
-    }
-}
-
 // Экспортируем функции в глобальную область видимости
 window.filterEvents = filterEvents;
 window.selectOption = selectOption;
@@ -625,8 +582,5 @@ window.clearBetSlip = clearBetSlip;
 window.updatePotentialWin = updatePotentialWin;
 window.placeBet = placeBet;
 window.logout = logout;
-
-window.showDailyBonusModal = showDailyBonusModal;
-
-
+window.openDailyBonusModal = openDailyBonusModal;
 window.closeDailyBonusModal = closeDailyBonusModal;
