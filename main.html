@@ -14,6 +14,7 @@
         <div class="user-info">
             <div class="balance">
                 Баланс: <span id="user-balance">0 монет</span>
+                <button id="daily-bonus-btn" class="btn" style="margin-left:10px;" onclick="openDailyBonusModal()">Получить ежедневную награду</button>
             </div>
             <div class="user-menu">
                 <span>Привет, <span id="username">Пользователь</span>!</span>
@@ -62,6 +63,14 @@
                     <small>Выберите события для ставки</small>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="dailyBonusModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeDailyBonusModal()">&times;</span>
+            <h3 class="modal-title">Ежедневный бонус</h3>
+            <div id="bonus-calendar" class="calendar-grid"></div>
         </div>
     </div>
 

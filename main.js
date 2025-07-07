@@ -24,11 +24,17 @@ let settings = {
     maxCoefficient: 50
 };
 
+// Награды за ежедневный бонус по дням стрика
+// День 1: 250, День 2: 500, День 3: 1000, День 4: 2000,
+// День 5: 3000, День 6: 5000, День 7: 7000
+const dailyRewards = [250, 500, 1000, 2000, 3000, 5000, 7000];
+
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('DOMContentLoaded', function() {
     checkAuth();
     loadSettings();
     loadEvents();
+    updateDailyBonusButton();
 });
 
 function checkAuth() {
@@ -40,6 +46,7 @@ function checkAuth() {
     
     currentUser = JSON.parse(savedUser);
     updateUserInfo();
+    updateDailyBonusButton();
     
     // Показать админ ссылку если пользователь админ/модератор
     if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
@@ -393,6 +400,118 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// ===== ЕЖЕДНЕВНЫЙ БОНУС =====
+function updateDailyBonusButton() {
+    const btn = document.getElementById('daily-bonus-btn');
+    if (!btn || !currentUser) return;
+    const today = new Date().toISOString().split('T')[0];
+    if (currentUser.lastBonusDate === today) {
+        btn.disabled = true;
+        btn.textContent = 'Бонус получен';
+    } else {
+        const reward = dailyRewards[getNextBonusIndex()];
+        btn.disabled = false;
+        btn.textContent = `Получить ${reward} монет`;
+    }
+}
+
+function getNextBonusIndex() {
+    if (!currentUser) return 0;
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    const yestStr = yesterday.toISOString().split('T')[0];
+
+    if (currentUser.lastBonusDate === todayStr) {
+        return ((currentUser.bonusDay || 1) - 1) % 7;
+    }
+
+    if (currentUser.lastBonusDate === yestStr) {
+        return (currentUser.bonusDay || 0) % 7;
+    }
+
+    return 0;
+}
+
+function openDailyBonusModal() {
+    generateBonusCalendar();
+    const modal = document.getElementById('dailyBonusModal');
+    if (modal) modal.style.display = 'block';
+}
+
+function closeDailyBonusModal() {
+    const modal = document.getElementById('dailyBonusModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function generateBonusCalendar() {
+    const calendar = document.getElementById('bonus-calendar');
+    if (!calendar) return;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    calendar.innerHTML = '';
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayButton = document.createElement('button');
+        dayButton.className = 'calendar-day';
+        const rewardIndex = (day - 1) % dailyRewards.length;
+        const reward = dailyRewards[rewardIndex];
+        dayButton.textContent = `${day}\n${reward} монет`;
+        if (day === now.getDate()) {
+            dayButton.classList.add('today');
+            dayButton.onclick = claimDailyBonus;
+        } else {
+            dayButton.disabled = true;
+        }
+        calendar.appendChild(dayButton);
+    }
+}
+
+async function claimDailyBonus() {
+    if (!currentUser) return;
+    const today = new Date().toISOString().split('T')[0];
+    if (currentUser.lastBonusDate === today) {
+        showNotification('Бонус уже получен сегодня', 'error');
+        return;
+    }
+
+    const yesterday = new Date();
+    yesterday.setDate(new Date().getDate() - 1);
+    const yestStr = yesterday.toISOString().split('T')[0];
+
+    let nextIndex;
+    if (currentUser.lastBonusDate === yestStr) {
+        nextIndex = (currentUser.bonusDay || 0) % 7;
+    } else {
+        nextIndex = 0;
+    }
+
+    const reward = dailyRewards[nextIndex];
+    currentUser.balance += reward;
+    currentUser.bonusDay = nextIndex + 1;
+    currentUser.lastBonusDate = today;
+
+    try {
+        const userRef = dbRef(database, `users/${currentUser.username}`);
+        await dbUpdate(userRef, {
+            balance: currentUser.balance,
+            bonusDay: currentUser.bonusDay,
+            lastBonusDate: currentUser.lastBonusDate
+        });
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        updateUserInfo();
+        updateDailyBonusButton();
+        closeDailyBonusModal();
+        showNotification(`Вы получили ${reward} монет!`, 'success');
+    } catch (error) {
+        console.error('Ошибка начисления бонуса:', error);
+        showNotification('Не удалось получить бонус', 'error');
+    }
+}
+
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
 function logout() {
     localStorage.removeItem('currentUser');
@@ -407,3 +526,5 @@ window.clearBetSlip = clearBetSlip;
 window.updatePotentialWin = updatePotentialWin;
 window.placeBet = placeBet;
 window.logout = logout;
+window.openDailyBonusModal = openDailyBonusModal;
+window.closeDailyBonusModal = closeDailyBonusModal;
