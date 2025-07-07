@@ -32,9 +32,11 @@ function checkAuth() {
     currentUser = JSON.parse(savedUser);
     updateUserInfo();
     
-    // Показать админ ссылку если пользователь админ/модератор
-    if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
-        document.getElementById('admin-link').style.display = 'block';
+    // Показать админ/модератор ссылки в меню
+    if (currentUser.role === "admin") {
+        document.getElementById("admin-link").style.display = "block";
+    } else if (currentUser.role === "moderator") {
+        document.getElementById("moderator-link").style.display = "block";
     }
 }
 

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MaxBet - Модератор</title>
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <!-- Шапка -->
+    <div class="header">
+        <div class="logo">🎯 MaxBet</div>
+        <div class="user-info">
+            <div class="balance">
+                Баланс: <span id="user-balance">0 лупанчиков</span>
+            </div>
+            <div class="user-menu">
+                <span>Привет, <span id="username">Пользователь</span>!</span>
+                <button class="btn btn-secondary" onclick="logout()" style="padding: 8px 16px; width: auto;">Выйти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Навигация -->
+    <div class="navigation">
+        <a href="main.html" class="nav-tab">📅 События</a>
+        <a href="history.html" class="nav-tab">📊 История ставок</a>
+        <a href="profile.html" class="nav-tab">👤 Профиль</a>
+        <a href="moderator.html" class="nav-tab active">🛡️ Модератор</a>
+    </div>
+
+    <!-- Панель модератора -->
+    <div class="admin-panel">
+        <div class="admin-header">
+            <h2 class="admin-title">🛡️ Панель модератора</h2>
+        </div>
+
+        <div class="admin-tabs">
+            <div class="admin-tab active" onclick="switchTab('events')">📅 События</div>
+            <div class="admin-tab" onclick="switchTab('bets')">🎯 Ставки</div>
+        </div>
+
+        <!-- СОБЫТИЯ -->
+        <div id="tab-events" class="admin-tab-content">
+            <div class="admin-grid">
+                <div class="admin-card">
+                    <h4>Добавить новое событие</h4>
+                    <div class="form-group">
+                        <label>Категория:</label>
+                        <select id="eventCategory">
+                            <option value="politics">🏛️ Политика</option>
+                            <option value="entertainment">🎭 Развлечения</option>
+                            <option value="technology">💻 Технологии</option>
+                            <option value="economics">💰 Экономика</option>
+                            <option value="weather">🌤️ Погода</option>
+                            <option value="society">👥 Общество</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Название события:</label>
+                        <input type="text" id="eventTitle" placeholder="Например: Выборы президента 2025">
+                    </div>
+                    <div class="form-group">
+                        <label>Описание:</label>
+                        <textarea id="eventDescription" placeholder="Подробное описание события" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Варианты (через запятую):</label>
+                        <input type="text" id="eventOptions" placeholder="Да, Нет, Возможно">
+                    </div>
+                    <div class="form-group">
+                        <label>Коэффициенты (через запятую):</label>
+                        <input type="text" id="eventCoefficients" placeholder="1.5, 2.0, 3.2">
+                    </div>
+                    <button class="btn" onclick="addEvent()">Добавить событие</button>
+                </div>
+
+                <div class="admin-card">
+                    <h4>Управление событиями</h4>
+                    <div style="margin-bottom: 15px;">
+                        <button class="btn" onclick="loadEvents()">Обновить список</button>
+                    </div>
+                    <div id="adminEventsList" style="max-height: 400px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно завершения события -->
+        <div id="finishEventModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal('finishEventModal')">&times;</span>
+                <h3 class="modal-title">Завершить событие</h3>
+                <div id="finishEventTitle" style="margin-bottom: 15px;"></div>
+                <div class="form-group">
+                    <label>Выберите исход события:</label>
+                    <select id="finishEventOption"></select>
+                </div>
+                <div style="text-align: right;">
+                    <button class="btn btn-secondary" onclick="closeModal('finishEventModal')">Отмена</button>
+                    <button class="btn" onclick="finishEventConfirm()">Завершить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- СТАВКИ -->
+        <div id="tab-bets" class="admin-tab-content hidden">
+            <div class="admin-card">
+                <h4>Ставки пользователей</h4>
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Статус:</label>
+                        <select id="betStatusFilter" onchange="filterBets()">
+                            <option value="all">Все ставки</option>
+                            <option value="pending">Ожидают</option>
+                            <option value="won">Выиграли</option>
+                            <option value="lost">Проиграли</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Тип:</label>
+                        <select id="betTypeFilter" onchange="filterBets()">
+                            <option value="all">Все типы</option>
+                            <option value="single">Одиночные</option>
+                            <option value="express">Экспрессы</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Пользователь:</label>
+                        <input type="text" id="betUserFilter" placeholder="Логин пользователя" oninput="filterBets()">
+                    </div>
+                    <button class="btn" onclick="loadBets()">Обновить</button>
+                </div>
+                <table class="admin-table" id="betsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Пользователь</th>
+                            <th>Тип</th>
+                            <th>Сумма</th>
+                            <th>Коэффициент</th>
+                            <th>Возможный выигрыш</th>
+                            <th>Статус</th>
+                            <th>Дата</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="betsTableBody">
+                        <tr><td colspan="9" class="loading">Загрузка ставок...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно просмотра ставки -->
+    <div id="viewBetModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('viewBetModal')">&times;</span>
+            <h3 class="modal-title">Детали ставки</h3>
+            <div id="betDetails"></div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeModal('viewBetModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script type="module" src="moderator.js"></script>
+</body>
+</html>
