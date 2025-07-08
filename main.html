@@ -18,9 +18,7 @@
             </div>
             <div class="user-menu">
                 <span>Привет, <span id="username">Пользователь</span>!</span>
-                <div id="connection-status" class="sync-indicator online" style="margin-left: 10px; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
-                    🟢 Соединение активно
-                </div>
+                <!-- Индикатор синхронизации будет добавлен здесь динамически -->
                 <button class="btn btn-secondary" onclick="logout()" style="padding: 8px 16px; width: auto;">Выйти</button>
             </div>
         </div>
@@ -91,57 +89,142 @@
     
     <!-- Загрузка скриптов -->
     <script src="firebase-config.js"></script>
-    <script type="module" src="main.js"></script>
     
-    <!-- Дополнительные функции для работы -->
-    <script>
-        // Обработка статуса соединения
-        function updateConnectionStatus() {
-            const statusDiv = document.getElementById('connection-status');
-            if (!statusDiv) return;
+    <!-- Последовательная загрузка sync-manager и main.js -->
+    <script type="module">
+        console.log('📝 Начало загрузки скриптов для main.html');
+        
+        // Сначала загружаем sync-manager
+        import('./sync-manager.js').then(() => {
+            console.log('✅ Sync Manager загружен в main.html');
             
-            if (navigator.onLine) {
-                statusDiv.className = 'sync-indicator online';
-                statusDiv.innerHTML = '🟢 Соединение активно';
-            } else {
-                statusDiv.className = 'sync-indicator offline';
-                statusDiv.innerHTML = '🔴 Нет соединения';
+            // Ждем немного для полной инициализации sync-manager
+            setTimeout(() => {
+                // Затем загружаем main.js
+                import('./main.js').then(() => {
+                    console.log('✅ Main.js загружен в main.html');
+                }).catch(error => {
+                    console.error('❌ Ошибка загрузки main.js:', error);
+                    showErrorMessage('Ошибка загрузки основного модуля: ' + error.message);
+                });
+            }, 500);
+            
+        }).catch(error => {
+            console.error('❌ Ошибка загрузки sync-manager.js:', error);
+            
+            // Пытаемся загрузить main.js без sync manager (fallback режим)
+            console.log('⚠️ Попытка загрузки main.js в fallback режиме');
+            import('./main.js').then(() => {
+                console.log('⚠️ Main.js загружен в fallback режиме');
+                showWarningMessage('Приложение работает без синхронизации. Некоторые функции могут быть ограничены.');
+            }).catch(mainError => {
+                console.error('❌ Критическая ошибка загрузки main.js:', mainError);
+                showErrorMessage('Критическая ошибка загрузки. Перезагрузите страницу.');
+            });
+        });
+        
+        // Функции для показа сообщений
+        function showErrorMessage(message) {
+            const container = document.querySelector('.main-content');
+            if (container) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 50px; color: #f44336;">
+                        <div style="font-size: 64px; margin-bottom: 20px;">⚠️</div>
+                        <h2 style="color: #f44336; margin-bottom: 20px;">Ошибка загрузки</h2>
+                        <p style="color: #b0bec5; margin-bottom: 30px;">${message}</p>
+                        <button class="btn" onclick="location.reload()">Перезагрузить страницу</button>
+                        <br><br>
+                        <a href="login.html" class="btn btn-secondary">Вернуться к входу</a>
+                    </div>
+                `;
             }
         }
         
-        // Слушатели событий соединения
-        window.addEventListener('online', () => {
-            updateConnectionStatus();
-            console.log('🌐 Соединение восстановлено');
-        });
-        
-        window.addEventListener('offline', () => {
-            updateConnectionStatus();
-            console.log('📡 Соединение потеряно');
-        });
-        
-        // Проверка соединения при загрузке
-        window.addEventListener('load', () => {
-            updateConnectionStatus();
-            console.log('🎯 Main.html загружен');
-            console.log('🔧 Firebase config доступен:', !!window.firebaseConfig);
-        });
-        
-        // Глобальные функции для тестирования
-        window.testConnection = function() {
-            console.log('🧪 Тест соединения:', navigator.onLine ? 'Online' : 'Offline');
-            updateConnectionStatus();
+        function showWarningMessage(message) {
+            const header = document.querySelector('.header');
+            if (header) {
+                const warning = document.createElement('div');
+                warning.style.cssText = `
+                    background: rgba(255, 152, 0, 0.9);
+                    color: white;
+                    text-align: center;
+                    padding: 10px;
+                    font-size: 14px;
+                    font-weight: 500;
+                `;
+                warning.textContent = '⚠️ ' + message;
+                header.parentNode.insertBefore(warning, header.nextSibling);
+                
+                // Автоскрытие через 10 секунд
+                setTimeout(() => {
+                    if (warning.parentNode) warning.remove();
+                }, 10000);
+            }
+        }
+    </script>
+    
+    <!-- Дополнительные глобальные функции -->
+    <script>
+        // Глобальные функции для тестирования и отладки
+        window.testSync = function() {
+            if (window.dataSyncManager) {
+                console.log('🔄 Статус синхронизации:', window.dataSyncManager.getSyncStatus());
+                console.log('👤 Текущий пользователь:', window.dataSyncManager.getCurrentUser());
+                console.log('📤 Отложенных обновлений:', window.dataSyncManager.getPendingUpdatesCount());
+            } else {
+                console.log('❌ DataSyncManager не доступен');
+            }
         };
         
+        // Функция для принудительного обновления данных
+        window.forceSync = function() {
+            if (window.dataSyncManager) {
+                window.dataSyncManager.forceRefresh()
+                    .then(() => console.log('✅ Принудительная синхронизация завершена'))
+                    .catch(error => console.error('❌ Ошибка принудительной синхронизации:', error));
+            } else {
+                console.log('❌ DataSyncManager не доступен');
+            }
+        };
+        
+        // Функция для перезагрузки событий
         window.reloadEvents = function() {
             if (window.loadEvents) {
                 window.loadEvents();
             } else {
-                console.log('⚠️ Функция loadEvents недоступна');
+                console.log('❌ Функция loadEvents недоступна');
             }
         };
         
-        // Обработка ошибок JavaScript
+        // Функция для очистки локальных данных
+        window.clearData = function() {
+            if (window.dataSyncManager) {
+                window.dataSyncManager.clearLocalData();
+                console.log('🗑️ Локальные данные очищены');
+            }
+            localStorage.clear();
+            location.reload();
+        };
+        
+        // Отладочная информация при загрузке
+        window.addEventListener('load', function() {
+            console.log('🎯 Main.html загружен');
+            console.log('🔧 Firebase config доступен:', !!window.firebaseConfig);
+            
+            // Показать отладочные команды в development режиме
+            if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                setTimeout(() => {
+                    console.log('🛠️ Отладочные команды:');
+                    console.log('   testSync() - проверить статус синхронизации');
+                    console.log('   forceSync() - принудительно синхронизировать');
+                    console.log('   reloadEvents() - перезагрузить события');
+                    console.log('   clearData() - очистить все данные');
+                    console.log('   createTestData() - создать тестовые данные');
+                }, 3000);
+            }
+        });
+        
+        // Обработка ошибок
         window.addEventListener('error', function(e) {
             console.error('🚨 JavaScript ошибка в main.html:', e.error);
             console.error('📍 Файл:', e.filename, 'Строка:', e.lineno);
@@ -153,16 +236,6 @@
             e.preventDefault();
         });
         
-        // Отладочная информация в development режиме
-        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-            setTimeout(() => {
-                console.log('🛠️ Отладочные команды:');
-                console.log('   testConnection() - проверить соединение');
-                console.log('   reloadEvents() - перезагрузить события');
-                console.log('   loadEvents() - загрузить события заново');
-            }, 2000);
-        }
-        
         // Закрытие модальных окон по клику на фон
         window.addEventListener('click', function(event) {
             if (event.target.classList.contains('modal')) {
@@ -170,8 +243,33 @@
             }
         });
         
-        // Автообновление статуса каждые 30 секунд
+        // Мониторинг состояния соединения
+        function updateConnectionStatus() {
+            const isOnline = navigator.onLine;
+            
+            if (window.dataSyncManager) {
+                // Обновим статус в sync manager если нужно
+                if (isOnline !== window.dataSyncManager.isUserOnline()) {
+                    console.log(`🌐 Состояние соединения изменилось: ${isOnline ? 'online' : 'offline'}`);
+                }
+            }
+        }
+        
+        // Слушатели событий соединения
+        window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('offline', updateConnectionStatus);
+        
+        // Проверка каждые 30 секунд
         setInterval(updateConnectionStatus, 30000);
+        
+        // Проверка фокуса страницы для обновления данных
+        window.addEventListener('focus', function() {
+            if (window.dataSyncManager && window.dataSyncManager.isUserOnline()) {
+                setTimeout(() => {
+                    window.dataSyncManager.forceRefresh().catch(console.error);
+                }, 1000);
+            }
+        });
     </script>
 </body>
 </html>
