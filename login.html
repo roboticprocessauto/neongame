@@ -53,33 +53,111 @@
             <button class="btn" onclick="attemptRegister()">Зарегистрироваться</button>
             <button class="btn btn-secondary" onclick="showLoginForm()">Назад к входу</button>
         </div>
+
+        <!-- Демо аккаунты -->
+        <div class="demo-users">
+            <h4>🎮 Демо аккаунты для тестирования:</h4>
+            <div class="demo-user">
+                <span>admin</span>
+                <span>admin123</span>
+            </div>
+            <div class="demo-user">
+                <span>user1</span>
+                <span>user123</span>
+            </div>
+            <div class="demo-user">
+                <span>moderator1</span>
+                <span>mod123</span>
+            </div>
+        </div>
     </div>
 
     <!-- Загрузка скриптов -->
     <script src="firebase-config.js"></script>
     
-    <!-- Сначала загружаем sync-manager -->
+    <!-- Загружаем sync-manager и auth.js последовательно -->
     <script type="module">
-        // Загружаем sync-manager, затем auth.js
+        console.log('📝 Начало загрузки скриптов для login.html');
+        
+        // Сначала загружаем sync-manager
         import('./sync-manager.js').then(() => {
             console.log('✅ Sync Manager загружен в login.html');
             
-            // Затем загружаем auth.js
-            import('./auth.js').then(() => {
-                console.log('✅ Auth.js загружен в login.html');
-            }).catch(error => {
-                console.error('❌ Ошибка загрузки auth.js:', error);
-            });
+            // Ждем немного для инициализации sync-manager
+            setTimeout(() => {
+                // Затем загружаем auth.js
+                import('./auth.js').then(() => {
+                    console.log('✅ Auth.js загружен в login.html');
+                }).catch(error => {
+                    console.error('❌ Ошибка загрузки auth.js:', error);
+                    // В случае ошибки показываем уведомление
+                    showNotification('Ошибка загрузки системы авторизации: ' + error.message, 'error');
+                });
+            }, 500);
+            
         }).catch(error => {
             console.error('❌ Ошибка загрузки sync-manager.js:', error);
             
             // Пытаемся загрузить auth.js без sync manager
+            console.log('⚠️ Попытка загрузки auth.js без sync manager');
             import('./auth.js').then(() => {
                 console.log('⚠️ Auth.js загружен без sync manager');
             }).catch(authError => {
                 console.error('❌ Критическая ошибка загрузки auth.js:', authError);
+                showNotification('Критическая ошибка загрузки. Перезагрузите страницу.', 'error');
             });
         });
+        
+        // Глобальная функция для показа уведомлений (доступна сразу)
+        window.showNotification = function(message, type = 'error') {
+            console.log(`📢 Уведомление (${type}): ${message}`);
+            
+            // Удаляем предыдущие уведомления
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(notification => notification.remove());
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            // Стили для уведомления
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideIn 0.3s ease;
+                max-width: 400px;
+                word-wrap: break-word;
+                font-size: 14px;
+                line-height: 1.4;
+            `;
+            
+            // Цвета по типам
+            const colors = {
+                success: '#4caf50',
+                error: '#f44336',
+                warning: '#ff9800',
+                info: '#2196f3'
+            };
+            
+            notification.style.backgroundColor = colors[type] || colors.info;
+            
+            document.body.appendChild(notification);
+            
+            // Автоудаление через 5 секунд
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.style.animation = 'slideIn 0.3s ease reverse';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, 5000);
+        };
     </script>
     
     <script>
@@ -88,26 +166,14 @@
             console.log('🎯 login.html загружен');
             console.log('🔧 Firebase config доступен:', !!window.firebaseConfig);
             
-            // Добавляем отладочные кнопки (только в development)
+            // Добавляем отладочную информацию (только в development)
             if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-                const debugInfo = document.createElement('div');
-                debugInfo.style.cssText = `
-                    position: fixed;
-                    bottom: 10px;
-                    left: 10px;
-                    background: rgba(0,0,0,0.8);
-                    color: white;
-                    padding: 10px;
-                    border-radius: 5px;
-                    font-size: 12px;
-                    z-index: 10000;
-                `;
-                debugInfo.innerHTML = `
-                    <div>🔧 Debug Mode</div>
-                    <button onclick="window.testFirebaseConnection()" style="margin-top: 5px; padding: 2px 5px;">Test Firebase</button>
-                    <button onclick="window.showDemoAccounts()" style="margin-top: 5px; padding: 2px 5px;">Show Demo</button>
-                `;
-                document.body.appendChild(debugInfo);
+                setTimeout(() => {
+                    console.log('🛠️ Отладочные команды:');
+                    console.log('   testFirebaseConnection() - проверить Firebase');
+                    console.log('   showDemoAccounts() - показать демо аккаунты');
+                    console.log('   createTestData() - создать тестовые данные');
+                }, 3000);
             }
         });
         
@@ -122,6 +188,22 @@
             console.error('🚨 Необработанная Promise ошибка:', e.reason);
             e.preventDefault();
         });
+        
+        // CSS для анимации
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
