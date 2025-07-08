@@ -53,40 +53,7 @@
     text-decoration: underline;
 }
 
-.demo-users {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
 
-.demo-users h4 {
-    color: #4fc3f7;
-    margin-bottom: 10px;
-    font-size: 14px;
-}
-
-.demo-user {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    font-size: 13px;
-}
-
-.demo-user:last-child {
-    border-bottom: none;
-}
-
-.demo-user span:first-child {
-    color: #4fc3f7;
-    font-weight: bold;
-}
-
-.demo-user span:last-child {
-    color: #b0bec5;
-}
 
 @media (max-width: 768px) {
     .login-container {
