@@ -78,7 +78,7 @@ async function waitForSyncManager() {
         throw new Error('DataSyncManager недоступен');
     }
     
-    console.log('✅ DataSyncManager готов к работе');
+    console.log('✅ DataSyncManager готов к работе:', window.dataSyncManager);
 }
 
 // ===== FALLBACK ИНИЦИАЛИЗАЦИЯ =====
@@ -105,6 +105,7 @@ async function checkAuth() {
     try {
         // Сначала попробуем загрузить из sync manager
         let savedUser = window.dataSyncManager.getLocalUser();
+        console.log('getLocalUser() вернул:', savedUser);
         
         if (!savedUser) {
             savedUser = localStorage.getItem('currentUser');
@@ -112,6 +113,7 @@ async function checkAuth() {
                 savedUser = JSON.parse(savedUser);
             }
         }
+        console.log('Пользователь из localStorage:', savedUser);
         
         if (!savedUser) {
             console.log('❌ Пользователь не найден, перенаправление на login');
@@ -123,6 +125,7 @@ async function checkAuth() {
         
         // Инициализировать пользователя в sync manager
         currentUser = await window.dataSyncManager.initializeUser(savedUser.username);
+        console.log('currentUser после initializeUser:', currentUser);
         
         // Обновить интерфейс
         updateUserInfo();
@@ -294,19 +297,30 @@ function handleConnectionLost() {
 
 // ===== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА =====
 function updateUserInfo() {
-    if (!currentUser) return;
-    
+    console.log('Вызван updateUserInfo, currentUser:', currentUser);
+    if (!currentUser) {
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+            console.log('currentUser восстановлен из localStorage:', currentUser);
+        } else {
+            console.warn('currentUser не найден даже в localStorage');
+        }
+    }
     const balanceElement = document.getElementById('user-balance');
     const usernameElement = document.getElementById('username');
-    
     if (balanceElement) {
-        balanceElement.textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
+        balanceElement.textContent = currentUser && currentUser.balance !== undefined ? `${currentUser.balance.toLocaleString()} лупанчиков` : 'нет данных';
+        console.log('Обновлен баланс:', balanceElement.textContent);
+    } else {
+        console.warn('balanceElement не найден');
     }
-    
     if (usernameElement) {
-        usernameElement.textContent = currentUser.username;
+        usernameElement.textContent = currentUser && currentUser.username ? currentUser.username : 'нет данных';
+        console.log('Обновлен username:', usernameElement.textContent);
+    } else {
+        console.warn('usernameElement не найден');
     }
-    
     // Обновить индикатор синхронизации
     updateSyncStatusIndicator();
 }
@@ -871,3 +885,56 @@ window.addEventListener('unhandledrejection', function(event) {
     console.error('🚨 Необработанная Promise ошибка:', event.reason);
     event.preventDefault();
 });
+
+function displayEvents(filter = 'all') {
+    const container = document.getElementById('events-container');
+    if (!container) {
+        console.warn('container #events-container не найден');
+        return;
+    }
+    container.innerHTML = '';
+    console.log('displayEvents вызван, filter:', filter);
+    console.log('events:', events);
+    if (!events || typeof events !== 'object') {
+        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий (events не объект)</p></div>';
+        console.warn('events не объект:', events);
+        return;
+    }
+    const filteredEvents = Object.entries(events).filter(([id, event]) => {
+        const isActive = event.status === 'active';
+        const categoryMatch = filter === 'all' || event.category === filter;
+        if (!isActive) console.log('Событие не активно:', id, event);
+        if (!categoryMatch) console.log('Событие не подходит по категории:', id, event);
+        return isActive && categoryMatch;
+    });
+    console.log('filteredEvents:', filteredEvents);
+    if (filteredEvents.length === 0) {
+        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий</p></div>';
+        return;
+    }
+    filteredEvents.forEach(([eventId, event]) => {
+        console.log('Отрисовываем событие:', eventId, event);
+        const eventElement = document.createElement('div');
+        eventElement.className = 'event-card';
+        eventElement.innerHTML = `
+            <div class="event-header">
+                <div>
+                    <div class="event-title">${event.title}</div>
+                </div>
+                <div class="event-category">${getCategoryName(event.category)}</div>
+            </div>
+            <div class="event-description">${event.description}</div>
+            <div class="event-options">
+                ${(event.options && event.coefficients && event.options.length === event.coefficients.length) ?
+                    event.options.map((option, index) => `
+                        <button class="option-btn" onclick="selectOption('${eventId}', '${option}', ${event.coefficients[index]})">
+                            <span class="option-text">${option}</span>
+                            <span class="option-coefficient">${event.coefficients[index]}</span>
+                        </button>
+                    `).join('') : '<span style="color:red">Некорректные опции/коэффициенты</span>'}
+            </div>
+        `;
+        container.appendChild(eventElement);
+    });
+    console.log(`📊 Отображено ${filteredEvents.length} событий`);
+}
