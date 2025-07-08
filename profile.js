@@ -1,16 +1,5 @@
 // ===== PROFILE.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { 
-    getDatabase, 
-    ref as dbRef, 
-    get as dbGet, 
-    update as dbUpdate
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-const app = initializeApp(window.firebaseConfig);
-const database = getDatabase(app);
-
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
 let userBets = [];
@@ -274,8 +263,8 @@ async function loadProfileData() {
             currentUser = window.dataSyncManager.getCurrentUser();
         } else {
             // Обновить данные из Firebase напрямую
-            const userRef = dbRef(database, `users/${currentUser.username}`);
-            const snapshot = await dbGet(userRef);
+            const userRef = window.firebase.database().ref(`users/${currentUser.username}`);
+            const snapshot = await userRef.once('value');
             
             if (snapshot.exists()) {
                 const userData = snapshot.val();
@@ -301,8 +290,8 @@ async function loadProfileData() {
 // ===== ЗАГРУЗКА ИСТОРИИ СТАВОК =====
 async function loadUserBetsHistory() {
     try {
-        const betsRef = dbRef(database, 'bets');
-        const snapshot = await dbGet(betsRef);
+        const betsRef = window.firebase.database().ref('bets');
+        const snapshot = await betsRef.once('value');
         
         if (snapshot.exists()) {
             const allBets = snapshot.val();
@@ -484,8 +473,8 @@ async function changePassword() {
             await window.dataSyncManager.updateUserData({ password: newPassword });
         } else {
             // Обновить напрямую в Firebase
-            const userRef = dbRef(database, `users/${currentUser.username}`);
-            await dbUpdate(userRef, { password: newPassword });
+            const userRef = window.firebase.database().ref(`users/${currentUser.username}`);
+            await userRef.update({ password: newPassword });
             
             // Обновить локальные данные
             currentUser.password = newPassword;
