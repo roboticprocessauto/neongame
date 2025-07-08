@@ -6,7 +6,6 @@
     <title>MaxBet - События и ставки</title>
     <link rel="stylesheet" href="common.css">
     <link rel="stylesheet" href="main.css">
-
 </head>
 <body>
     <!-- Шапка -->
@@ -19,7 +18,9 @@
             </div>
             <div class="user-menu">
                 <span>Привет, <span id="username">Пользователь</span>!</span>
-                <!-- Индикатор синхронизации будет добавлен здесь динамически -->
+                <div id="connection-status" class="sync-indicator online" style="margin-left: 10px; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
+                    🟢 Соединение активно
+                </div>
                 <button class="btn btn-secondary" onclick="logout()" style="padding: 8px 16px; width: auto;">Выйти</button>
             </div>
         </div>
@@ -53,7 +54,7 @@
             
             <!-- Список событий -->
             <div id="events-container" class="events-grid">
-                <div class="loading">Загрузка событий...</div>
+                <div class="loading">🔄 Загрузка событий...</div>
             </div>
         </div>
         
@@ -88,81 +89,59 @@
         </div>
     </div>
     
-    <!-- Скрипты -->
+    <!-- Загрузка скриптов -->
     <script src="firebase-config.js"></script>
+    <script type="module" src="main.js"></script>
     
-    <!-- Сначала загружаем sync-manager -->
-    <script type="module">
-        import('./sync-manager.js').then(() => {
-            console.log('✅ Sync Manager загружен');
-            
-            // Затем загружаем main.js
-            import('./main.js').then(() => {
-                console.log('✅ Main.js загружен');
-            }).catch(error => {
-                console.error('❌ Ошибка загрузки main.js:', error);
-            });
-        }).catch(error => {
-            console.error('❌ Ошибка загрузки sync-manager.js:', error);
-            
-            // Пытаемся загрузить main.js без sync manager
-            import('./main.js').then(() => {
-                console.log('⚠️ Main.js загружен без sync manager');
-            }).catch(mainError => {
-                console.error('❌ Критическая ошибка загрузки main.js:', mainError);
-            });
-        });
-    </script>
-    
-    <!-- Глобальные функции для тестирования -->
+    <!-- Дополнительные функции для работы -->
     <script>
-        // Функция для тестирования синхронизации (доступна в консоли)
-        window.testSync = function() {
-            if (window.dataSyncManager) {
-                console.log('🔄 Статус синхронизации:', window.dataSyncManager.getSyncStatus());
-                console.log('👤 Текущий пользователь:', window.dataSyncManager.getCurrentUser());
-                console.log('📤 Отложенных обновлений:', window.dataSyncManager.getPendingUpdatesCount());
+        // Обработка статуса соединения
+        function updateConnectionStatus() {
+            const statusDiv = document.getElementById('connection-status');
+            if (!statusDiv) return;
+            
+            if (navigator.onLine) {
+                statusDiv.className = 'sync-indicator online';
+                statusDiv.innerHTML = '🟢 Соединение активно';
             } else {
-                console.log('❌ DataSyncManager не доступен');
+                statusDiv.className = 'sync-indicator offline';
+                statusDiv.innerHTML = '🔴 Нет соединения';
             }
-        };
+        }
         
-        // Функция для принудительного обновления данных
-        window.forceSync = function() {
-            if (window.dataSyncManager) {
-                window.dataSyncManager.forceRefresh()
-                    .then(() => console.log('✅ Принудительная синхронизация завершена'))
-                    .catch(error => console.error('❌ Ошибка принудительной синхронизации:', error));
-            } else {
-                console.log('❌ DataSyncManager не доступен');
-            }
-        };
+        // Слушатели событий соединения
+        window.addEventListener('online', () => {
+            updateConnectionStatus();
+            console.log('🌐 Соединение восстановлено');
+        });
         
-        // Функция для очистки локальных данных
-        window.clearData = function() {
-            if (window.dataSyncManager) {
-                window.dataSyncManager.clearLocalData();
-                console.log('🗑️ Локальные данные очищены');
-            }
-            localStorage.clear();
-            location.reload();
-        };
+        window.addEventListener('offline', () => {
+            updateConnectionStatus();
+            console.log('📡 Соединение потеряно');
+        });
         
-        // Отладочная информация при загрузке
-        window.addEventListener('load', function() {
+        // Проверка соединения при загрузке
+        window.addEventListener('load', () => {
+            updateConnectionStatus();
             console.log('🎯 Main.html загружен');
             console.log('🔧 Firebase config доступен:', !!window.firebaseConfig);
-            
-            // Показать отладочные команды в development режиме
-            if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-                console.log('🛠️ Отладочные команды:');
-                console.log('   testSync() - проверить статус синхронизации');
-                console.log('   forceSync() - принудительно синхронизировать');
-                console.log('   clearData() - очистить все данные');
-            }
         });
         
-        // Обработка ошибок
+        // Глобальные функции для тестирования
+        window.testConnection = function() {
+            console.log('🧪 Тест соединения:', navigator.onLine ? 'Online' : 'Offline');
+            updateConnectionStatus();
+        };
+        
+        window.reloadEvents = function() {
+            if (window.loadEvents) {
+                window.loadEvents();
+            } else {
+                console.log('⚠️ Функция loadEvents недоступна');
+            }
+        };
+        
+        // Обработка ошибок JavaScript
         window.addEventListener('error', function(e) {
             console.error('🚨 JavaScript ошибка в main.html:', e.error);
             console.error('📍 Файл:', e.filename, 'Строка:', e.lineno);
@@ -173,6 +152,26 @@
             console.error('🚨 Необработанная Promise ошибка:', e.reason);
             e.preventDefault();
         });
+        
+        // Отладочная информация в development режиме
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            setTimeout(() => {
+                console.log('🛠️ Отладочные команды:');
+                console.log('   testConnection() - проверить соединение');
+                console.log('   reloadEvents() - перезагрузить события');
+                console.log('   loadEvents() - загрузить события заново');
+            }, 2000);
+        }
+        
+        // Закрытие модальных окон по клику на фон
+        window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        });
+        
+        // Автообновление статуса каждые 30 секунд
+        setInterval(updateConnectionStatus, 30000);
     </script>
 </body>
 </html>
