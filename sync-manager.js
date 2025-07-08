@@ -177,13 +177,13 @@ class DataSyncManager {
             const presenceRef = this.database.ref(`presence/${this.currentUser.username}`);
             presenceRef.onDisconnect().set({
                 online: false,
-                lastSeen: this.database.ServerValue.TIMESTAMP
+                lastSeen: window.firebase.database.ServerValue.TIMESTAMP
             });
             
             // Установить статус "online" сейчас
             presenceRef.update({
                 online: true,
-                lastConnected: this.database.ServerValue.TIMESTAMP
+                lastConnected: window.firebase.database.ServerValue.TIMESTAMP
             });
             
             console.log('🔌 Обработчики отключения настроены');
@@ -329,7 +329,7 @@ class DataSyncManager {
             
             const updateData = {
                 ...updates,
-                lastUpdated: this.database.ServerValue.TIMESTAMP
+                lastUpdated: window.firebase.database.ServerValue.TIMESTAMP
             };
             
             if (this.isOnline) {
