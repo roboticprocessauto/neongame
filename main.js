@@ -1,4 +1,5 @@
-// ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
+// ===== MAIN.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { 
     getDatabase, 
@@ -24,49 +25,316 @@ let settings = {
     maxCoefficient: 50
 };
 
-// Награды за ежедневный бонус по дням стрика
-// День 1: 250, День 2: 500, День 3: 1000, День 4: 2000,
-// День 5: 3000, День 6: 5000, День 7: 7000
+// Награды за ежедневный бонус
 const dailyRewards = [250, 500, 1000, 2000, 3000, 5000, 7000];
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
-window.addEventListener('DOMContentLoaded', function() {
-    checkAuth();
-    loadSettings();
-    loadEvents();
-    updateDailyBonusButton();
+window.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 Инициализация main.js');
+    
+    try {
+        // Ждем инициализации sync manager
+        await waitForSyncManager();
+        
+        // Проверяем авторизацию и инициализируем синхронизацию
+        await checkAuth();
+        
+        // Загружаем данные
+        await loadSettings();
+        await loadEvents();
+        
+        // Настраиваем слушатели событий синхронизации
+        setupSyncEventListeners();
+        
+        // Обновляем интерфейс
+        updateDailyBonusButton();
+        
+        console.log('✅ main.js полностью инициализирован');
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации main.js:', error);
+        showNotification('Ошибка инициализации приложения', 'error');
+    }
 });
 
-function checkAuth() {
-    const savedUser = localStorage.getItem('currentUser');
-    if (!savedUser) {
-        window.location.href = 'login.html';
-        return;
+// ===== ОЖИДАНИЕ SYNC MANAGER =====
+async function waitForSyncManager() {
+    let attempts = 0;
+    const maxAttempts = 50; // 5 секунд
+    
+    while (!window.dataSyncManager && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
     }
     
-    currentUser = JSON.parse(savedUser);
-    updateUserInfo();
-    updateDailyBonusButton();
+    if (!window.dataSyncManager) {
+        throw new Error('DataSyncManager не инициализирован');
+    }
     
+    console.log('✅ DataSyncManager готов к работе');
+}
 
-    // Показать админ/модератор ссылки в меню
-    if (currentUser.role === "admin") {
-        document.getElementById("admin-link").style.display = "block";
-    } else if (currentUser.role === "moderator") {
-        document.getElementById("moderator-link").style.display = "block";
+// ===== АВТОРИЗАЦИЯ С СИНХРОНИЗАЦИЕЙ =====
+async function checkAuth() {
+    console.log('🔐 Проверка авторизации с синхронизацией');
+    
+    try {
+        // Сначала попробуем загрузить из localStorage
+        let savedUser = window.dataSyncManager.getLocalUser();
+        
+        if (!savedUser) {
+            savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                savedUser = JSON.parse(savedUser);
+            }
+        }
+        
+        if (!savedUser) {
+            console.log('❌ Пользователь не найден, перенаправление на login');
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        console.log('👤 Найден пользователь, инициализация синхронизации:', savedUser.username);
+        
+        // Инициализировать пользователя в sync manager
+        currentUser = await window.dataSyncManager.initializeUser(savedUser.username);
+        
+        // Обновить интерфейс
+        updateUserInfo();
+        
+        // Показать админ/модератор ссылки
+        showRoleSpecificLinks();
+        
+        console.log('✅ Авторизация и синхронизация завершены');
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки авторизации:', error);
+        
+        // Очистить некорректные данные и перенаправить
+        if (window.dataSyncManager) {
+            window.dataSyncManager.clearLocalData();
+        }
+        localStorage.removeItem('currentUser');
+        window.location.href = 'login.html';
     }
 }
 
+// ===== НАСТРОЙКА СЛУШАТЕЛЕЙ СИНХРОНИЗАЦИИ =====
+function setupSyncEventListeners() {
+    console.log('🎧 Настройка слушателей событий синхронизации');
+    
+    window.addEventListener('dataSync', (event) => {
+        const { type, data, timestamp } = event.detail;
+        console.log(`📡 Получено событие синхронизации: ${type}`, data);
+        
+        switch (type) {
+            case 'user_updated':
+            case 'user_refreshed':
+                handleUserDataUpdate(data);
+                break;
+                
+            case 'user_updated_offline':
+                handleOfflineUserUpdate(data);
+                break;
+                
+            case 'events_updated':
+                handleEventsUpdate(data);
+                break;
+                
+            case 'settings_updated':
+                handleSettingsUpdate(data);
+                break;
+                
+            case 'connection_restored':
+                handleConnectionRestored();
+                break;
+                
+            case 'connection_lost':
+                handleConnectionLost();
+                break;
+        }
+    });
+}
+
+// ===== ОБРАБОТЧИКИ СОБЫТИЙ СИНХРОНИЗАЦИИ =====
+function handleUserDataUpdate(data) {
+    if (data.user) {
+        const oldBalance = currentUser ? currentUser.balance : 0;
+        currentUser = data.user;
+        
+        // Обновить интерфейс
+        updateUserInfo();
+        updateDailyBonusButton();
+        
+        // Показать уведомления о важных изменениях
+        if (data.changes && data.changes.length > 0) {
+            data.changes.forEach(change => {
+                if (change.field === 'balance' && change.oldValue !== undefined) {
+                    const diff = change.newValue - change.oldValue;
+                    if (Math.abs(diff) > 0) {
+                        showBalanceChangeNotification(diff);
+                    }
+                }
+            });
+        }
+        
+        console.log('🔄 Интерфейс обновлен с новыми данными пользователя');
+    }
+}
+
+function handleOfflineUserUpdate(data) {
+    if (data.user) {
+        currentUser = data.user;
+        updateUserInfo();
+        
+        // Показать индикатор офлайн обновления
+        showNotification('Данные обновлены локально (офлайн режим)', 'warning');
+    }
+}
+
+function handleEventsUpdate(data) {
+    events = data;
+    displayEvents();
+    console.log('📅 События обновлены в реальном времени');
+}
+
+function handleSettingsUpdate(data) {
+    Object.assign(settings, data);
+    console.log('⚙️ Настройки обновлены');
+}
+
+function handleConnectionRestored() {
+    showNotification('Соединение восстановлено! Синхронизация данных...', 'success');
+    updateSyncStatus(true);
+}
+
+function handleConnectionLost() {
+    showNotification('Соединение потеряно. Переход в офлайн режим.', 'warning');
+    updateSyncStatus(false);
+}
+
+// ===== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА =====
 function updateUserInfo() {
     if (!currentUser) return;
-
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
-    document.getElementById('username').textContent = currentUser.username;
-
-    const btn = document.getElementById('daily-bonus-btn');
-    if (btn) {
-        btn.disabled = hasClaimedToday();
+    
+    const balanceElement = document.getElementById('user-balance');
+    const usernameElement = document.getElementById('username');
+    
+    if (balanceElement) {
+        balanceElement.textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
     }
+    
+    if (usernameElement) {
+        usernameElement.textContent = currentUser.username;
+    }
+    
+    // Обновить индикатор синхронизации
+    updateSyncStatusIndicator();
+}
+
+function showRoleSpecificLinks() {
+    if (!currentUser) return;
+    
+    const adminLink = document.getElementById("admin-link");
+    const moderatorLink = document.getElementById("moderator-link");
+    
+    if (adminLink && currentUser.role === "admin") {
+        adminLink.style.display = "block";
+    }
+    
+    if (moderatorLink && currentUser.role === "moderator") {
+        moderatorLink.style.display = "block";
+    }
+}
+
+function updateSyncStatus(isOnline) {
+    const statusIndicator = document.getElementById('sync-status');
+    if (statusIndicator) {
+        if (isOnline) {
+            statusIndicator.innerHTML = '🟢 Синхронизировано';
+            statusIndicator.style.color = '#4caf50';
+        } else {
+            statusIndicator.innerHTML = '🔴 Офлайн';
+            statusIndicator.style.color = '#f44336';
+        }
+    }
+}
+
+function updateSyncStatusIndicator() {
+    const statusIndicator = document.getElementById('sync-status');
+    if (statusIndicator && window.dataSyncManager) {
+        const syncStatus = window.dataSyncManager.getSyncStatus();
+        const pendingCount = syncStatus.pendingUpdates;
+        
+        if (!syncStatus.online) {
+            statusIndicator.innerHTML = `🔴 Офлайн${pendingCount > 0 ? ` (${pendingCount})` : ''}`;
+            statusIndicator.style.color = '#f44336';
+        } else if (syncStatus.syncInProgress) {
+            statusIndicator.innerHTML = '🟡 Синхронизация...';
+            statusIndicator.style.color = '#ff9800';
+        } else {
+            statusIndicator.innerHTML = '🟢 Синхронизировано';
+            statusIndicator.style.color = '#4caf50';
+        }
+    }
+}
+
+// ===== УВЕДОМЛЕНИЯ =====
+function showBalanceChangeNotification(diff) {
+    const message = diff > 0 
+        ? `💰 Баланс увеличен на ${diff} лупанчиков!`
+        : `📉 Баланс уменьшен на ${Math.abs(diff)} лупанчиков`;
+        
+    showNotification(message, diff > 0 ? 'success' : 'warning');
+}
+
+function showNotification(message, type = 'info') {
+    console.log(`📢 Уведомление (${type}): ${message}`);
+    
+    // Удаляем предыдущие уведомления
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => notification.remove());
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    // Стили для уведомления
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+        word-wrap: break-word;
+    `;
+    
+    // Цвета по типам
+    const colors = {
+        success: '#4caf50',
+        error: '#f44336',
+        warning: '#ff9800',
+        info: '#2196f3'
+    };
+    
+    notification.style.backgroundColor = colors[type] || colors.info;
+    
+    document.body.appendChild(notification);
+    
+    // Автоудаление через 4 секунды
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, 4000);
 }
 
 // ===== ЗАГРУЗКА НАСТРОЕК =====
@@ -78,8 +346,10 @@ async function loadSettings() {
         if (snapshot.exists()) {
             Object.assign(settings, snapshot.val());
         }
+        
+        console.log('⚙️ Настройки загружены:', settings);
     } catch (error) {
-        console.error('Ошибка загрузки настроек:', error);
+        console.error('❌ Ошибка загрузки настроек:', error);
     }
 }
 
@@ -92,13 +362,13 @@ async function loadEvents() {
         if (snapshot.exists()) {
             events = snapshot.val();
         } else {
-            // Создать демо события если их нет
             await createDemoEvents();
         }
         
         displayEvents();
+        console.log('📅 События загружены');
     } catch (error) {
-        console.error('Ошибка загрузки событий:', error);
+        console.error('❌ Ошибка загрузки событий:', error);
     }
 }
 
@@ -138,12 +408,14 @@ async function createDemoEvents() {
         await dbSet(eventsRef, demoEvents);
         events = demoEvents;
     } catch (error) {
-        console.error('Ошибка создания демо событий:', error);
+        console.error('❌ Ошибка создания демо событий:', error);
     }
 }
 
 function displayEvents(filter = 'all') {
     const container = document.getElementById('events-container');
+    if (!container) return;
+    
     container.innerHTML = '';
 
     const filteredEvents = Object.entries(events).filter(([id, event]) => {
@@ -193,10 +465,8 @@ function getCategoryName(category) {
 
 // ===== ФИЛЬТРАЦИЯ СОБЫТИЙ =====
 function filterEvents(category) {
-    // Обновить активный фильтр
     document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
-    
     displayEvents(category);
 }
 
@@ -210,11 +480,9 @@ function selectOption(eventId, option, coefficient) {
     const event = events[eventId];
     if (!event) return;
 
-    // Проверить, не добавлена ли уже ставка на это событие
     const existingIndex = betSlip.findIndex(item => item.eventId === eventId);
     
     if (existingIndex !== -1) {
-        // Заменить существующую ставку
         betSlip[existingIndex] = {
             eventId: eventId,
             eventTitle: event.title,
@@ -222,7 +490,6 @@ function selectOption(eventId, option, coefficient) {
             coefficient: coefficient
         };
     } else {
-        // Добавить новую ставку
         betSlip.push({
             eventId: eventId,
             eventTitle: event.title,
@@ -237,6 +504,7 @@ function selectOption(eventId, option, coefficient) {
 
 function updateBetSlipDisplay() {
     const container = document.getElementById('bet-slip-content');
+    if (!container) return;
     
     if (betSlip.length === 0) {
         container.innerHTML = `
@@ -313,7 +581,7 @@ function updatePotentialWin() {
     }
 }
 
-// ===== РАЗМЕЩЕНИЕ СТАВОК =====
+// ===== РАЗМЕЩЕНИЕ СТАВОК С СИНХРОНИЗАЦИЕЙ =====
 async function placeBet(type) {
     if (!currentUser) {
         showNotification('Войдите в систему', 'error');
@@ -373,14 +641,9 @@ async function placeBet(type) {
 
         await dbSet(newBetRef, bet);
 
-        // Обновить баланс пользователя
-        const userRef = dbRef(database, `users/${currentUser.username}`);
+        // Обновить баланс пользователя через sync manager
         const newBalance = currentUser.balance - amount;
-        await dbUpdate(userRef, { balance: newBalance });
-
-        currentUser.balance = newBalance;
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        updateUserInfo();
+        await window.dataSyncManager.updateUserData({ balance: newBalance });
 
         // Очистить корзину ставок
         betSlip = [];
@@ -389,29 +652,16 @@ async function placeBet(type) {
         showNotification('Ставка размещена успешно!', 'success');
 
     } catch (error) {
-        console.error('Ошибка размещения ставки:', error);
+        console.error('❌ Ошибка размещения ставки:', error);
         showNotification('Ошибка размещения ставки', 'error');
     }
-}
-
-// ===== УВЕДОМЛЕНИЯ =====
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.animation = 'slideIn 0.3s ease reverse';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
 }
 
 // ===== ЕЖЕДНЕВНЫЙ БОНУС =====
 function updateDailyBonusButton() {
     const btn = document.getElementById('daily-bonus-btn');
     if (!btn || !currentUser) return;
+    
     const today = new Date().toISOString().split('T')[0];
     if (currentUser.lastBonusDate === today) {
         btn.disabled = true;
@@ -478,6 +728,12 @@ function generateBonusCalendar() {
     }
 }
 
+function hasClaimedToday() {
+    if (!currentUser) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return currentUser.lastBonusDate === today;
+}
+
 async function claimDailyBonus() {
     if (!currentUser) return;
     const today = new Date().toISOString().split('T')[0];
@@ -498,85 +754,76 @@ async function claimDailyBonus() {
     }
 
     const reward = dailyRewards[nextIndex];
-    currentUser.balance += reward;
-    currentUser.bonusDay = nextIndex + 1;
-    currentUser.lastBonusDate = today;
 
     try {
-        const userRef = dbRef(database, `users/${currentUser.username}`);
-        await dbUpdate(userRef, {
-            balance: currentUser.balance,
-            bonusDay: currentUser.bonusDay,
-            lastBonusDate: currentUser.lastBonusDate
+        // Обновить данные пользователя через sync manager
+        await window.dataSyncManager.updateUserData({
+            balance: currentUser.balance + reward,
+            bonusDay: nextIndex + 1,
+            lastBonusDate: today
         });
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        updateUserInfo();
+
         updateDailyBonusButton();
         closeDailyBonusModal();
         showNotification(`Вы получили ${reward} лупанчиков!`, 'success');
+        
     } catch (error) {
-        console.error('Ошибка начисления бонуса:', error);
+        console.error('❌ Ошибка начисления бонуса:', error);
         showNotification('Не удалось получить бонус', 'error');
     }
 }
 
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
 function logout() {
-    localStorage.removeItem('currentUser');
-    window.location.href = 'login.html';
-}
-
-// ===== ЕЖЕДНЕВНЫЙ БОНУС =====
-function ensureDailyBonus() {
-    if (!currentUser.dailyBonus) {
-        currentUser.dailyBonus = { lastClaim: 0, streak: 0 };
-    }
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-}
-
-function hasClaimedToday() {
-    if (!currentUser.dailyBonus) return false;
-    const last = new Date(currentUser.dailyBonus.lastClaim);
-    const now = new Date();
-    return last.getFullYear() === now.getFullYear() &&
-           last.getMonth() === now.getMonth() &&
-           last.getDate() === now.getDate();
-}
-
-function renderDailyBonusCalendar() {
-    const calendar = document.getElementById('dailyBonusCalendar');
-    if (!calendar) return;
-
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const days = new Date(year, month + 1, 0).getDate();
-
-    calendar.innerHTML = '';
-    for (let d = 1; d <= days; d++) {
-        const dayEl = document.createElement('div');
-        dayEl.className = 'calendar-day';
-        dayEl.textContent = d;
-
-        if (d === now.getDate()) {
-            dayEl.classList.add('current-day');
-            if (hasClaimedToday()) {
-                dayEl.classList.add('claimed');
-            } else {
-                dayEl.classList.add('claimable');
-                dayEl.addEventListener('click', claimDailyBonus);
-            }
-        } else if (d < now.getDate()) {
-            dayEl.classList.add('claimed');
-        } else {
-            dayEl.classList.add('disabled');
+    try {
+        // Очистить sync manager
+        if (window.dataSyncManager) {
+            window.dataSyncManager.cleanup();
+            window.dataSyncManager.clearLocalData();
         }
-
-        calendar.appendChild(dayEl);
+        
+        // Очистить localStorage
+        localStorage.removeItem('currentUser');
+        
+        // Перенаправить на страницу входа
+        window.location.href = 'login.html';
+    } catch (error) {
+        console.error('❌ Ошибка выхода из системы:', error);
+        // В любом случае перенаправить
+        window.location.href = 'login.html';
     }
 }
 
-// Экспортируем функции в глобальную область видимости
+// ===== ДОБАВЛЕНИЕ ИНДИКАТОРА СИНХРОНИЗАЦИИ =====
+function addSyncStatusIndicator() {
+    const header = document.querySelector('.header .user-info');
+    if (header && !document.getElementById('sync-status')) {
+        const syncStatus = document.createElement('div');
+        syncStatus.id = 'sync-status';
+        syncStatus.style.cssText = `
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            color: #4caf50;
+            margin-left: 10px;
+            padding: 2px 6px;
+            border-radius: 12px;
+            background: rgba(76, 175, 80, 0.1);
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        `;
+        syncStatus.innerHTML = '🟢 Синхронизировано';
+        header.appendChild(syncStatus);
+        
+        console.log('📊 Индикатор синхронизации добавлен');
+    }
+}
+
+// Добавить индикатор после загрузки DOM
+setTimeout(() => {
+    addSyncStatusIndicator();
+}, 1000);
+
+// ===== ЭКСПОРТ ФУНКЦИЙ =====
 window.filterEvents = filterEvents;
 window.selectOption = selectOption;
 window.removeFromBetSlip = removeFromBetSlip;
@@ -586,3 +833,11 @@ window.placeBet = placeBet;
 window.logout = logout;
 window.openDailyBonusModal = openDailyBonusModal;
 window.closeDailyBonusModal = closeDailyBonusModal;
+
+// Глобальная функция для тестирования синхронизации
+window.testSync = function() {
+    if (window.dataSyncManager) {
+        console.log('🧪 Статус синхронизации:', window.dataSyncManager.getSyncStatus());
+        console.log('👤 Текущий пользователь:', window.dataSyncManager.getCurrentUser());
+    }
+};
