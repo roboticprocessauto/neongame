@@ -1,34 +1,32 @@
-// Firebase Configuration
-// Это клиентская конфигурация - эти данные не секретные и предназначены для публичного использования
+// ===== FIREBASE CONFIGURATION =====
+
+// Firebase конфигурация
 window.firebaseConfig = {
-    apiKey: "AIzaSyA7a22ZA0sjtPKof0GmwcAnNmHZ4s7d7U4",
-    authDomain: "checker-7f7b7.firebaseapp.com",
-    databaseURL: "https://checker-7f7b7-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "checker-7f7b7",
-    storageBucket: "checker-7f7b7.firebasestorage.app",
-    messagingSenderId: "55724792345",
-    appId: "1:55724792345:web:5df424f16e495d8f38a888",
-    measurementId: "G-2F94LPCYYM"
+    apiKey: "AIzaSyDH8ZOW4fU5KfUGv-QeR8A1HGl-VJRlZJE",
+    authDomain: "maxbet-demo.firebaseapp.com",
+    databaseURL: "https://maxbet-demo-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "maxbet-demo",
+    storageBucket: "maxbet-demo.appspot.com",
+    messagingSenderId: "123456789012",
+    appId: "1:123456789012:web:abcdef123456789012345678"
 };
 
-// Проверяем, что конфигурация загружена
-console.log('🔥 Firebase config загружен:', !!window.firebaseConfig);
+// Проверка конфигурации
+if (window.firebaseConfig) {
+    console.log('🔧 Firebase конфигурация загружена');
+} else {
+    console.error('❌ Ошибка загрузки Firebase конфигурации');
+}
 
-// Добавляем глобальную проверку доступности Firebase
-window.checkFirebaseConfig = function() {
-    if (!window.firebaseConfig) {
-        console.error('❌ Firebase конфигурация не найдена!');
-        return false;
-    }
+// Дополнительные настройки для разработки
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    console.log('🛠️ Режим разработки активен');
     
-    const requiredFields = ['apiKey', 'authDomain', 'databaseURL', 'projectId'];
-    const missingFields = requiredFields.filter(field => !window.firebaseConfig[field]);
-    
-    if (missingFields.length > 0) {
-        console.error('❌ Отсутствуют поля Firebase конфигурации:', missingFields);
-        return false;
-    }
-    
-    console.log('✅ Firebase конфигурация корректна');
-    return true;
-};
+    // Можно добавить дополнительные настройки для локальной разработки
+    window.isDevelopment = true;
+}
+
+// Экспорт для ES6 модулей (если нужен)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = window.firebaseConfig;
+}
