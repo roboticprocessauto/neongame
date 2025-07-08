@@ -15,6 +15,8 @@ class DataSyncManager {
         this.pendingUpdates = new Map();
         this.lastSyncTime = 0;
         this.syncInProgress = false;
+        this.initializationPromise = null;
+        this.isInitialized = false;
         
         this.init();
     }
@@ -25,13 +27,21 @@ class DataSyncManager {
             // Ждем загрузки Firebase
             await this.waitForFirebase();
             
-            this.app = window.firebase.initializeApp(window.firebaseConfig);
+            // Проверяем, не инициализирован ли уже Firebase
+            if (!window.firebase.apps.length) {
+                this.app = window.firebase.initializeApp(window.firebaseConfig);
+            } else {
+                this.app = window.firebase.apps[0];
+            }
+            
             this.database = window.firebase.database();
             this.setupEventListeners();
             this.loadPendingUpdates();
+            this.isInitialized = true;
             console.log('🔄 DataSyncManager инициализирован');
         } catch (error) {
             console.error('❌ Ошибка инициализации DataSyncManager:', error);
+            this.isInitialized = false;
         }
     }
     
@@ -56,6 +66,25 @@ class DataSyncManager {
     async initializeUser(username) {
         try {
             console.log(`🔄 Инициализация пользователя: ${username}`);
+            
+            // Ждем завершения инициализации Firebase
+            if (!this.isInitialized) {
+                console.log('⏳ Ожидание инициализации Firebase...');
+                let attempts = 0;
+                while (!this.isInitialized && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!this.isInitialized) {
+                    throw new Error('Firebase не инициализирован');
+                }
+            }
+            
+            // Проверяем, что database доступен
+            if (!this.database) {
+                throw new Error('База данных Firebase не инициализирована');
+            }
             
             // Очистить предыдущие данные
             this.cleanup();
@@ -103,7 +132,7 @@ class DataSyncManager {
     
     // ===== REAL-TIME СЛУШАТЕЛИ =====
     setupRealtimeListeners() {
-        if (!this.userRef || !this.currentUser) return;
+        if (!this.userRef || !this.currentUser || !this.database) return;
         
         console.log('🎧 Настройка real-time слушателей');
         
@@ -144,33 +173,35 @@ class DataSyncManager {
         this.listeners.set('user', userUnsubscribe);
         
         // Слушатель настроек системы
-        const settingsRef = this.database.ref('settings');
-        const settingsUnsubscribe = settingsRef.on('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const settings = snapshot.val();
-                this.notifyDataChange('settings_updated', settings);
-                console.log('⚙️ Настройки системы обновлены:', settings);
-            }
-        });
-        
-        this.listeners.set('settings', settingsUnsubscribe);
-        
-        // Слушатель событий (для real-time обновлений)
-        const eventsRef = this.database.ref('events');
-        const eventsUnsubscribe = eventsRef.on('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const events = snapshot.val();
-                this.notifyDataChange('events_updated', events);
-                console.log('📅 События обновлены в реальном времени');
-            }
-        });
-        
-        this.listeners.set('events', eventsUnsubscribe);
+        if (this.database) {
+            const settingsRef = this.database.ref('settings');
+            const settingsUnsubscribe = settingsRef.on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const settings = snapshot.val();
+                    this.notifyDataChange('settings_updated', settings);
+                    console.log('⚙️ Настройки системы обновлены:', settings);
+                }
+            });
+            
+            this.listeners.set('settings', settingsUnsubscribe);
+            
+            // Слушатель событий (для real-time обновлений)
+            const eventsRef = this.database.ref('events');
+            const eventsUnsubscribe = eventsRef.on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const events = snapshot.val();
+                    this.notifyDataChange('events_updated', events);
+                    console.log('📅 События обновлены в реальном времени');
+                }
+            });
+            
+            this.listeners.set('events', eventsUnsubscribe);
+        }
     }
     
     // ===== ОБРАБОТКА ОТКЛЮЧЕНИЯ =====
     setupDisconnectHandlers() {
-        if (!this.userRef) return;
+        if (!this.userRef || !this.database || !this.currentUser) return;
         
         try {
             // Установить статус "offline" при отключении
@@ -286,7 +317,7 @@ class DataSyncManager {
     }
     
     async refreshUserData() {
-        if (!this.userRef) return;
+        if (!this.userRef || !this.database) return;
         
         try {
             const snapshot = await this.userRef.once('value');
@@ -320,8 +351,8 @@ class DataSyncManager {
     
     // ===== ОБНОВЛЕНИЕ ДАННЫХ =====
     async updateUserData(updates, skipLocalUpdate = false) {
-        if (!this.userRef || !this.currentUser) {
-            throw new Error('Пользователь не инициализирован');
+        if (!this.userRef || !this.currentUser || !this.database) {
+            throw new Error('Пользователь или база данных не инициализированы');
         }
         
         try {
@@ -402,7 +433,7 @@ class DataSyncManager {
     }
     
     async syncPendingUpdates() {
-        if (!this.isOnline || this.pendingUpdates.size === 0 || !this.userRef) return;
+        if (!this.isOnline || this.pendingUpdates.size === 0 || !this.userRef || !this.database) return;
         
         console.log(`🔄 Синхронизация ${this.pendingUpdates.size} отложенных обновлений`);
         
@@ -625,30 +656,93 @@ class DataSyncManager {
             syncInProgress: this.syncInProgress
         };
     }
+    
+    isReady() {
+        return this.isInitialized && this.database !== null;
+    }
+    
+    async waitForReady() {
+        if (this.isReady()) {
+            return true;
+        }
+        
+        let attempts = 0;
+        const maxAttempts = 50; // 5 секунд
+        
+        while (!this.isReady() && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        return this.isReady();
+    }
 }
 
 // ===== ГЛОБАЛЬНЫЙ ЭКЗЕМПЛЯР =====
 let dataSyncManager = null;
+let initializationInProgress = false;
 
 // Инициализировать при загрузке
 window.addEventListener('DOMContentLoaded', async () => {
-    if (!dataSyncManager) {
-        dataSyncManager = new DataSyncManager();
-        window.dataSyncManager = dataSyncManager;
-        console.log('🚀 DataSyncManager создан и готов к работе');
+    if (!dataSyncManager && !initializationInProgress) {
+        initializationInProgress = true;
         
-        // Автоматически инициализировать пользователя, если он уже авторизован
         try {
-            const savedUser = localStorage.getItem('currentUser');
-            if (savedUser) {
-                const userData = JSON.parse(savedUser);
-                console.log(`🔄 Автоматическая инициализация пользователя: ${userData.username}`);
-                await dataSyncManager.initializeUser(userData.username);
+            dataSyncManager = new DataSyncManager();
+            window.dataSyncManager = dataSyncManager;
+            console.log('🚀 DataSyncManager создан и готов к работе');
+            
+            // Ждем завершения инициализации
+            let attempts = 0;
+            while (!dataSyncManager.isInitialized && attempts < 50) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            // Автоматически инициализировать пользователя, если он уже авторизован
+            if (dataSyncManager.isInitialized) {
+                try {
+                    const savedUser = localStorage.getItem('currentUser');
+                    if (savedUser) {
+                        const userData = JSON.parse(savedUser);
+                        console.log(`🔄 Автоматическая инициализация пользователя: ${userData.username}`);
+                        await dataSyncManager.initializeUser(userData.username);
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка автоматической инициализации пользователя:', error);
+                }
             }
         } catch (error) {
-            console.error('❌ Ошибка автоматической инициализации пользователя:', error);
+            console.error('❌ Ошибка создания DataSyncManager:', error);
+        } finally {
+            initializationInProgress = false;
         }
     }
 });
+
+// Функция для получения экземпляра DataSyncManager
+window.getDataSyncManager = () => {
+    return dataSyncManager;
+};
+
+// Функция для ожидания готовности DataSyncManager
+window.waitForDataSyncManager = async () => {
+    if (!dataSyncManager) {
+        let attempts = 0;
+        const maxAttempts = 100; // 10 секунд
+        
+        while (!dataSyncManager && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+    }
+    
+    if (dataSyncManager) {
+        await dataSyncManager.waitForReady();
+        return dataSyncManager;
+    }
+    
+    throw new Error('DataSyncManager не инициализирован');
+};
 
 
