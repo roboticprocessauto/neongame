@@ -1,15 +1,5 @@
 // ===== HISTORY.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { 
-    getDatabase, 
-    ref as dbRef, 
-    get as dbGet
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-const app = initializeApp(window.firebaseConfig);
-const database = getDatabase(app);
-
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
 let allUserBets = [];
@@ -172,8 +162,8 @@ function showRoleSpecificLinks() {
 // ===== ЗАГРУЗКА СОБЫТИЙ =====
 async function loadEvents() {
     try {
-        const eventsRef = dbRef(database, 'events');
-        const snapshot = await dbGet(eventsRef);
+        const eventsRef = window.firebase.database().ref('events');
+        const snapshot = await eventsRef.once('value');
         
         if (snapshot.exists()) {
             events = snapshot.val();
@@ -195,8 +185,8 @@ async function loadUserBetsHistory() {
             container.innerHTML = '<div class="loading">🔄 Загрузка истории ставок...</div>';
         }
 
-        const betsRef = dbRef(database, 'bets');
-        const snapshot = await dbGet(betsRef);
+        const betsRef = window.firebase.database().ref('bets');
+        const snapshot = await betsRef.once('value');
 
         if (snapshot.exists()) {
             const allBets = snapshot.val();
