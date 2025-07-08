@@ -131,6 +131,12 @@ async function checkAuth() {
         window.currentUser = await window.dataSyncManager.initializeUser(savedUser.username);
         console.log('window.currentUser после initializeUser:', window.currentUser);
         
+        // Синхронизировать с DataSyncManager если нужно
+        if (!window.currentUser && window.dataSyncManager.getCurrentUser()) {
+            window.currentUser = window.dataSyncManager.getCurrentUser();
+            console.log('window.currentUser синхронизирован из DataSyncManager:', window.currentUser);
+        }
+        
         // Обновить интерфейс
         updateUserInfo();
         
@@ -863,6 +869,19 @@ function logout() {
     }
 }
 
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+function getCategoryName(category) {
+    const categories = {
+        'politics': '🏛️ Политика',
+        'entertainment': '🎭 Развлечения',
+        'technology': '💻 Технологии',
+        'economics': '💰 Экономика',
+        'weather': '🌤️ Погода',
+        'society': '👥 Общество'
+    };
+    return categories[category] || category;
+}
+
 // ===== ЭКСПОРТ ФУНКЦИЙ =====
 window.filterEvents = filterEvents;
 window.selectOption = selectOption;
@@ -874,6 +893,7 @@ window.logout = logout;
 window.openDailyBonusModal = openDailyBonusModal;
 window.closeDailyBonusModal = closeDailyBonusModal;
 window.loadEvents = loadEvents;
+window.getCategoryName = getCategoryName;
 
 // Глобальная функция для тестирования синхронизации
 window.testSync = function() {
@@ -882,6 +902,20 @@ window.testSync = function() {
         console.log('👤 Текущий пользователь:', window.dataSyncManager.getCurrentUser());
     } else {
         console.log('⚠️ DataSyncManager недоступен');
+    }
+};
+
+// Функция для принудительной синхронизации пользователя
+window.syncUser = function() {
+    if (window.dataSyncManager && window.dataSyncManager.getCurrentUser()) {
+        window.currentUser = window.dataSyncManager.getCurrentUser();
+        updateUserInfo();
+        showRoleSpecificLinks();
+        console.log('✅ Пользователь синхронизирован:', window.currentUser);
+        return true;
+    } else {
+        console.log('❌ Нет данных пользователя в DataSyncManager');
+        return false;
     }
 };
 
