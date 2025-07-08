@@ -58,14 +58,19 @@ async function initializeFirebase() {
             throw new Error('Firebase конфигурация не найдена');
         }
 
-        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        // Загружаем Firebase SDK через CDN
+        if (!window.firebase) {
+            await loadFirebaseSDK();
+        }
+
+        const { initializeApp } = window.firebase;
         const { 
             getDatabase, 
             ref, 
             set, 
             get, 
             update
-        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js');
+        } = window.firebase.database;
 
         const app = initializeApp(window.firebaseConfig);
         database = getDatabase(app);
@@ -81,6 +86,34 @@ async function initializeFirebase() {
         console.error('🔥 Ошибка инициализации Firebase:', error);
         throw error;
     }
+}
+
+// ===== ЗАГРУЗКА FIREBASE SDK =====
+async function loadFirebaseSDK() {
+    return new Promise((resolve, reject) => {
+        // Проверяем, не загружен ли уже Firebase
+        if (window.firebase) {
+            resolve();
+            return;
+        }
+
+        // Загружаем Firebase App
+        const appScript = document.createElement('script');
+        appScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        appScript.onload = () => {
+            // Загружаем Firebase Database
+            const dbScript = document.createElement('script');
+            dbScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+            dbScript.onload = () => {
+                console.log('📦 Firebase SDK загружен');
+                resolve();
+            };
+            dbScript.onerror = reject;
+            document.head.appendChild(dbScript);
+        };
+        appScript.onerror = reject;
+        document.head.appendChild(appScript);
+    });
 }
 
 // ===== ПРОВЕРКА СУЩЕСТВУЮЩЕЙ АВТОРИЗАЦИИ =====
@@ -532,22 +565,6 @@ async function testFirebaseConnection() {
     }
 }
 
-function showDemoAccounts() {
-    const demoAccounts = [
-        { username: 'admin', password: 'admin123', role: 'Администратор' },
-        { username: 'user1', password: 'user123', role: 'Пользователь' },
-        { username: 'moderator1', password: 'mod123', role: 'Модератор' }
-    ];
-    
-    console.log('👥 Демо аккаунты:');
-    demoAccounts.forEach(account => {
-        console.log(`   ${account.role}: ${account.username} / ${account.password}`);
-    });
-    
-    // Показать в интерфейсе если нужно
-    showNotification('Демо аккаунты выведены в консоль (F12)', 'info');
-}
-
 // ===== ОБРАБОТКА КРИТИЧЕСКИХ ОШИБОК =====
 window.addEventListener('error', function(event) {
     console.error('🚨 Критическая ошибка JavaScript:', event.error);
@@ -567,13 +584,3 @@ window.showLoginForm = showLoginForm;
 window.attemptLogin = attemptLogin;
 window.attemptRegister = attemptRegister;
 window.testFirebaseConnection = testFirebaseConnection;
-window.showDemoAccounts = showDemoAccounts;
-
-// ===== АВТОМАТИЧЕСКИЙ ПОКАЗ ДЕМО АККАУНТОВ =====
-setTimeout(() => {
-    if (window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1' || 
-        window.location.search.includes('demo')) {
-        showDemoAccounts();
-    }
-}, 2000);
