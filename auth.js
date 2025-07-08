@@ -1,3 +1,8 @@
+// ===== ОБНОВЛЕННЫЙ auth.js С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
+
+// Импорт синхронизации
+import { DataSyncManager } from './sync-manager.js';
+
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
 let database = null;
@@ -5,6 +10,7 @@ let dbRef = null;
 let dbSet = null;
 let dbGet = null;
 let dbUpdate = null;
+let syncManager = null;
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('DOMContentLoaded', async function() {
@@ -14,9 +20,11 @@ window.addEventListener('DOMContentLoaded', async function() {
         // Инициализация Firebase
         await initializeFirebase();
         
-        // Проверка существующей авторизации
-        checkExistingAuth();
+        // Инициализация менеджера синхронизации
+        syncManager = new DataSyncManager();
         
+        // Проверка существующей авторизации
+        await checkExistingAuth();
         
         // Настройка обработчиков событий
         setupEventHandlers();
@@ -31,12 +39,10 @@ window.addEventListener('DOMContentLoaded', async function() {
 // ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
 async function initializeFirebase() {
     try {
-        // Проверяем, что firebaseConfig доступен
         if (!window.firebaseConfig) {
             throw new Error('Firebase конфигурация не найдена');
         }
 
-        // Импортируем Firebase модули
         const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
         const { 
             getDatabase, 
@@ -46,11 +52,9 @@ async function initializeFirebase() {
             update
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js');
 
-        // Инициализируем Firebase
         const app = initializeApp(window.firebaseConfig);
         database = getDatabase(app);
         
-        // Сохраняем функции для использования
         dbRef = ref;
         dbSet = set;
         dbGet = get;
@@ -63,14 +67,65 @@ async function initializeFirebase() {
     }
 }
 
-function checkExistingAuth() {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-        console.log('👤 Найден сохраненный пользователь, перенаправление...');
-        window.location.href = 'main.html';
+// ===== ПРОВЕРКА СУЩЕСТВУЮЩЕЙ АВТОРИЗАЦИИ =====
+async function checkExistingAuth() {
+    try {
+        // Проверить localStorage
+        const savedUser = localStorage.getItem('currentUser');
+        
+        if (savedUser) {
+            console.log('👤 Найден сохраненный пользователь');
+            
+            const userData = JSON.parse(savedUser);
+            
+            // Проверить актуальность данных в Firebase
+            const userRef = dbRef(database, `users/${userData.username}`);
+            const snapshot = await dbGet(userRef);
+            
+            if (snapshot.exists()) {
+                const firebaseData = snapshot.val();
+                
+                // Проверить, что пароль не изменился и аккаунт активен
+                if (firebaseData.password === userData.password && firebaseData.status === 'active') {
+                    console.log('✅ Данные пользователя актуальны, перенаправление...');
+                    
+                    // Инициализировать синхронизацию
+                    await syncManager.initializeUser(userData.username);
+                    
+                    // Небольшая задержка для инициализации
+                    setTimeout(() => {
+                        window.location.href = 'main.html';
+                    }, 1000);
+                    return;
+                } else {
+                    console.log('⚠️ Данные пользователя устарели, требуется повторный вход');
+                    clearUserData();
+                }
+            } else {
+                console.log('❌ Пользователь не найден в базе данных');
+                clearUserData();
+            }
+        }
+    } catch (error) {
+        console.error('❌ Ошибка проверки авторизации:', error);
+        clearUserData();
     }
 }
 
+// ===== ОЧИСТКА ДАННЫХ ПОЛЬЗОВАТЕЛЯ =====
+function clearUserData() {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('lastSyncTime');
+    localStorage.removeItem('pendingUpdates');
+    
+    if (syncManager) {
+        syncManager.cleanup();
+        syncManager.clearLocalData();
+    }
+    
+    currentUser = null;
+    console.log('🗑️ Данные пользователя очищены');
+}
 
 // ===== НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ =====
 function setupEventHandlers() {
@@ -85,6 +140,15 @@ function setupEventHandlers() {
                 attemptRegister();
             }
         }
+    });
+    
+    // Обработчик потери соединения
+    window.addEventListener('offline', () => {
+        showNotification('Соединение потеряно. Некоторые функции могут быть недоступны.', 'warning');
+    });
+    
+    window.addEventListener('online', () => {
+        showNotification('Соединение восстановлено!', 'success');
     });
     
     console.log('⌨️ Обработчики событий настроены');
@@ -115,6 +179,12 @@ async function attemptLogin() {
         return;
     }
     
+    // Показать загрузку
+    const loginBtn = document.querySelector('#login-form .btn');
+    const originalText = loginBtn.textContent;
+    loginBtn.textContent = 'Вход...';
+    loginBtn.disabled = true;
+    
     try {
         console.log(`👤 Попытка входа для пользователя: ${username}`);
         
@@ -142,25 +212,33 @@ async function attemptLogin() {
             return;
         }
         
-        const currentUser = {
+        // Успешная авторизация
+        currentUser = {
             username: username,
             ...userData
         };
         
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
         console.log(`✅ Успешный вход пользователя ${username}`);
+        
+        // Инициализировать синхронизацию данных
+        await syncManager.initializeUser(username);
         
         showNotification('Вход выполнен успешно!', 'success');
         
+        // Перенаправление с задержкой для завершения синхронизации
         setTimeout(() => {
             window.location.href = 'main.html';
-        }, 1000);
+        }, 1500);
         
     } catch (error) {
         console.error('❌ Ошибка входа:', error);
         showNotification('Ошибка подключения к серверу: ' + error.message, 'error');
+    } finally {
+        // Восстановить кнопку
+        loginBtn.textContent = originalText;
+        loginBtn.disabled = false;
     }
-};
+}
 
 async function attemptRegister() {
     console.log('📝 Попытка регистрации...');
@@ -189,6 +267,12 @@ async function attemptRegister() {
         return;
     }
     
+    // Показать загрузку
+    const registerBtn = document.querySelector('#register-form .btn');
+    const originalText = registerBtn.textContent;
+    registerBtn.textContent = 'Регистрация...';
+    registerBtn.disabled = true;
+    
     try {
         console.log(`📝 Попытка регистрации пользователя: ${username}`);
         
@@ -207,7 +291,8 @@ async function attemptRegister() {
             balance: 5000,
             betLimit: 1000,
             registeredAt: Date.now(),
-            status: 'active'
+            status: 'active',
+            lastUpdated: Date.now()
         };
         
         await dbSet(userRef, newUser);
@@ -227,8 +312,12 @@ async function attemptRegister() {
     } catch (error) {
         console.error('❌ Ошибка регистрации:', error);
         showNotification('Ошибка подключения к серверу: ' + error.message, 'error');
+    } finally {
+        // Восстановить кнопку
+        registerBtn.textContent = originalText;
+        registerBtn.disabled = false;
     }
-};
+}
 
 // ===== УВЕДОМЛЕНИЯ =====
 function showNotification(message, type = 'error') {
@@ -290,7 +379,7 @@ async function testFirebaseConnection() {
         console.error('❌ Ошибка подключения к Firebase:', error);
         showNotification('Ошибка подключения к Firebase: ' + error.message, 'error');
     }
-};
+}
 
 function showDemoAccounts() {
     const demoAccounts = [
@@ -303,7 +392,18 @@ function showDemoAccounts() {
     demoAccounts.forEach(account => {
         console.log(`   ${account.role}: ${account.username} / ${account.password}`);
     });
-};
+}
+
+// ===== ОБРАБОТКА КРИТИЧЕСКИХ ОШИБОК =====
+window.addEventListener('error', function(event) {
+    console.error('🚨 Критическая ошибка JavaScript:', event.error);
+    
+    // Очистить данные при критической ошибке
+    if (event.error.message.includes('Firebase') || event.error.message.includes('network')) {
+        clearUserData();
+        showNotification('Произошла критическая ошибка. Данные очищены.', 'error');
+    }
+});
 
 // Экспортируем функции в глобальную область видимости
 window.showRegisterForm = showRegisterForm;
@@ -313,7 +413,7 @@ window.attemptRegister = attemptRegister;
 window.testFirebaseConnection = testFirebaseConnection;
 window.showDemoAccounts = showDemoAccounts;
 
-// Вызываем показ демо аккаунтов при загрузке для удобства
+// Показать демо аккаунты при загрузке
 setTimeout(() => {
-    showDemoAccounts();
+  
 }, 1000);
