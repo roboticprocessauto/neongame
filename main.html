@@ -6,6 +6,7 @@
     <title>MaxBet - События и ставки</title>
     <link rel="stylesheet" href="common.css">
     <link rel="stylesheet" href="main.css">
+
 </head>
 <body>
     <!-- Шапка -->
@@ -18,10 +19,12 @@
             </div>
             <div class="user-menu">
                 <span>Привет, <span id="username">Пользователь</span>!</span>
+                <!-- Индикатор синхронизации будет добавлен здесь динамически -->
                 <button class="btn btn-secondary" onclick="logout()" style="padding: 8px 16px; width: auto;">Выйти</button>
             </div>
         </div>
     </div>
+    
     <!-- Навигация -->
     <div class="navigation">
         <a href="main.html" class="nav-tab active">📅 События</a>
@@ -30,6 +33,7 @@
         <a href="admin.html" class="nav-tab" id="admin-link" style="display: none;">🛠️ Админ панель</a>
         <a href="moderator.html" class="nav-tab" id="moderator-link" style="display: none;">🛡️ Модератор</a>
     </div>
+    
     <!-- Основной контент -->
     <div class="main-content">
         <!-- Секция событий -->
@@ -46,11 +50,13 @@
                 <button class="filter-btn" onclick="filterEvents('weather')">🌤️ Погода</button>
                 <button class="filter-btn" onclick="filterEvents('society')">👥 Общество</button>
             </div>
+            
             <!-- Список событий -->
             <div id="events-container" class="events-grid">
                 <div class="loading">Загрузка событий...</div>
             </div>
         </div>
+        
         <!-- Корзина ставок -->
         <div class="bet-slip-section">
             <h3 class="section-title" style="font-size: 20px;">Корзина ставок</h3>
@@ -62,14 +68,111 @@
             </div>
         </div>
     </div>
+    
+    <!-- Модальное окно ежедневного бонуса -->
     <div id="dailyBonusModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeDailyBonusModal()">&times;</span>
-            <h3 class="modal-title">Ежедневный бонус</h3>
-            <div id="bonus-calendar" class="calendar-grid"></div>
+            <h3 class="modal-title">🎁 Ежедневный бонус</h3>
+            <p style="color: #b0bec5; text-align: center; margin-bottom: 20px;">
+                Получайте бонусы каждый день! Чем дольше серия, тем больше награда.
+            </p>
+            <div id="bonus-calendar" class="calendar-grid">
+                <!-- Календарь будет заполнен динамически -->
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <small style="color: #b0bec5;">
+                    💡 Заходите каждый день, чтобы не прерывать серию!
+                </small>
+            </div>
         </div>
     </div>
+    
+    <!-- Скрипты -->
     <script src="firebase-config.js"></script>
-    <script type="module" src="main.js"></script>
+    
+    <!-- Сначала загружаем sync-manager -->
+    <script type="module">
+        import('./sync-manager.js').then(() => {
+            console.log('✅ Sync Manager загружен');
+            
+            // Затем загружаем main.js
+            import('./main.js').then(() => {
+                console.log('✅ Main.js загружен');
+            }).catch(error => {
+                console.error('❌ Ошибка загрузки main.js:', error);
+            });
+        }).catch(error => {
+            console.error('❌ Ошибка загрузки sync-manager.js:', error);
+            
+            // Пытаемся загрузить main.js без sync manager
+            import('./main.js').then(() => {
+                console.log('⚠️ Main.js загружен без sync manager');
+            }).catch(mainError => {
+                console.error('❌ Критическая ошибка загрузки main.js:', mainError);
+            });
+        });
+    </script>
+    
+    <!-- Глобальные функции для тестирования -->
+    <script>
+        // Функция для тестирования синхронизации (доступна в консоли)
+        window.testSync = function() {
+            if (window.dataSyncManager) {
+                console.log('🔄 Статус синхронизации:', window.dataSyncManager.getSyncStatus());
+                console.log('👤 Текущий пользователь:', window.dataSyncManager.getCurrentUser());
+                console.log('📤 Отложенных обновлений:', window.dataSyncManager.getPendingUpdatesCount());
+            } else {
+                console.log('❌ DataSyncManager не доступен');
+            }
+        };
+        
+        // Функция для принудительного обновления данных
+        window.forceSync = function() {
+            if (window.dataSyncManager) {
+                window.dataSyncManager.forceRefresh()
+                    .then(() => console.log('✅ Принудительная синхронизация завершена'))
+                    .catch(error => console.error('❌ Ошибка принудительной синхронизации:', error));
+            } else {
+                console.log('❌ DataSyncManager не доступен');
+            }
+        };
+        
+        // Функция для очистки локальных данных
+        window.clearData = function() {
+            if (window.dataSyncManager) {
+                window.dataSyncManager.clearLocalData();
+                console.log('🗑️ Локальные данные очищены');
+            }
+            localStorage.clear();
+            location.reload();
+        };
+        
+        // Отладочная информация при загрузке
+        window.addEventListener('load', function() {
+            console.log('🎯 Main.html загружен');
+            console.log('🔧 Firebase config доступен:', !!window.firebaseConfig);
+            
+            // Показать отладочные команды в development режиме
+            if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                console.log('🛠️ Отладочные команды:');
+                console.log('   testSync() - проверить статус синхронизации');
+                console.log('   forceSync() - принудительно синхронизировать');
+                console.log('   clearData() - очистить все данные');
+            }
+        });
+        
+        // Обработка ошибок
+        window.addEventListener('error', function(e) {
+            console.error('🚨 JavaScript ошибка в main.html:', e.error);
+            console.error('📍 Файл:', e.filename, 'Строка:', e.lineno);
+        });
+        
+        // Обработка Promise ошибок
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('🚨 Необработанная Promise ошибка:', e.reason);
+            e.preventDefault();
+        });
+    </script>
 </body>
 </html>
