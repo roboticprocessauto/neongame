@@ -1,17 +1,7 @@
 // ===== УЛУЧШЕННАЯ СИСТЕМА СИНХРОНИЗАЦИИ ДАННЫХ =====
 
 // sync-manager.js - Менеджер синхронизации данных
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { 
-    getDatabase, 
-    ref as dbRef, 
-    get as dbGet, 
-    onValue, 
-    off,
-    serverTimestamp,
-    update as dbUpdate,
-    onDisconnect
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+// Используем глобальный объект Firebase вместо ES6 импортов
 
 class DataSyncManager {
     constructor() {
@@ -32,14 +22,34 @@ class DataSyncManager {
     // ===== ИНИЦИАЛИЗАЦИЯ =====
     async init() {
         try {
-            this.app = initializeApp(window.firebaseConfig);
-            this.database = getDatabase(this.app);
+            // Ждем загрузки Firebase
+            await this.waitForFirebase();
+            
+            this.app = window.firebase.initializeApp(window.firebaseConfig);
+            this.database = window.firebase.database.getDatabase(this.app);
             this.setupEventListeners();
             this.loadPendingUpdates();
             console.log('🔄 DataSyncManager инициализирован');
         } catch (error) {
             console.error('❌ Ошибка инициализации DataSyncManager:', error);
         }
+    }
+    
+    // ===== ОЖИДАНИЕ FIREBASE =====
+    async waitForFirebase() {
+        let attempts = 0;
+        const maxAttempts = 50; // 5 секунд
+        
+        while (!window.firebase && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        if (!window.firebase) {
+            throw new Error('Firebase не загружен');
+        }
+        
+        console.log('🔥 Firebase готов для DataSyncManager');
     }
     
     // ===== ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЯ =====
@@ -51,10 +61,10 @@ class DataSyncManager {
             this.cleanup();
             
             // Установить ссылку на пользователя
-            this.userRef = dbRef(this.database, `users/${username}`);
+            this.userRef = window.firebase.database.ref(this.database, `users/${username}`);
             
             // Получить актуальные данные из Firebase
-            const snapshot = await dbGet(this.userRef);
+            const snapshot = await window.firebase.database.get(this.userRef);
             
             if (!snapshot.exists()) {
                 throw new Error('Пользователь не найден в базе данных');
@@ -98,7 +108,7 @@ class DataSyncManager {
         console.log('🎧 Настройка real-time слушателей');
         
         // Слушатель изменений пользователя
-        const userUnsubscribe = onValue(this.userRef, (snapshot) => {
+        const userUnsubscribe = window.firebase.database.onValue(this.userRef, (snapshot) => {
             if (snapshot.exists()) {
                 const firebaseData = snapshot.val();
                 const oldUser = { ...this.currentUser };
@@ -134,8 +144,8 @@ class DataSyncManager {
         this.listeners.set('user', userUnsubscribe);
         
         // Слушатель настроек системы
-        const settingsRef = dbRef(this.database, 'settings');
-        const settingsUnsubscribe = onValue(settingsRef, (snapshot) => {
+        const settingsRef = window.firebase.database.ref(this.database, 'settings');
+        const settingsUnsubscribe = window.firebase.database.onValue(settingsRef, (snapshot) => {
             if (snapshot.exists()) {
                 const settings = snapshot.val();
                 this.notifyDataChange('settings_updated', settings);
@@ -146,8 +156,8 @@ class DataSyncManager {
         this.listeners.set('settings', settingsUnsubscribe);
         
         // Слушатель событий (для real-time обновлений)
-        const eventsRef = dbRef(this.database, 'events');
-        const eventsUnsubscribe = onValue(eventsRef, (snapshot) => {
+        const eventsRef = window.firebase.database.ref(this.database, 'events');
+        const eventsUnsubscribe = window.firebase.database.onValue(eventsRef, (snapshot) => {
             if (snapshot.exists()) {
                 const events = snapshot.val();
                 this.notifyDataChange('events_updated', events);
@@ -164,16 +174,16 @@ class DataSyncManager {
         
         try {
             // Установить статус "offline" при отключении
-            const presenceRef = dbRef(this.database, `presence/${this.currentUser.username}`);
-            onDisconnect(presenceRef).set({
+            const presenceRef = window.firebase.database.ref(this.database, `presence/${this.currentUser.username}`);
+            window.firebase.database.onDisconnect(presenceRef).set({
                 online: false,
-                lastSeen: serverTimestamp()
+                lastSeen: window.firebase.database.serverTimestamp()
             });
             
             // Установить статус "online" сейчас
-            dbUpdate(presenceRef, {
+            window.firebase.database.update(presenceRef, {
                 online: true,
-                lastConnected: serverTimestamp()
+                lastConnected: window.firebase.database.serverTimestamp()
             });
             
             console.log('🔌 Обработчики отключения настроены');
@@ -279,7 +289,7 @@ class DataSyncManager {
         if (!this.userRef) return;
         
         try {
-            const snapshot = await dbGet(this.userRef);
+            const snapshot = await window.firebase.database.get(this.userRef);
             
             if (snapshot.exists()) {
                 const firebaseData = snapshot.val();
@@ -319,12 +329,12 @@ class DataSyncManager {
             
             const updateData = {
                 ...updates,
-                lastUpdated: serverTimestamp()
+                lastUpdated: window.firebase.database.serverTimestamp()
             };
             
             if (this.isOnline) {
                 // Обновить в Firebase
-                await dbUpdate(this.userRef, updateData);
+                await window.firebase.database.update(this.userRef, updateData);
                 console.log('✅ Данные обновлены в Firebase');
                 
                 // Обновить локальные данные только если это не пришло от слушателя
@@ -400,7 +410,7 @@ class DataSyncManager {
         
         for (const [updateId, updateInfo] of updates) {
             try {
-                await dbUpdate(this.userRef, updateInfo.data);
+                await window.firebase.database.update(this.userRef, updateInfo.data);
                 this.pendingUpdates.delete(updateId);
                 console.log(`✅ Отложенное обновление ${updateId} синхронизировано`);
             } catch (error) {
@@ -577,7 +587,7 @@ class DataSyncManager {
         // Очистить ссылку на пользователя
         if (this.userRef) {
             try {
-                off(this.userRef);
+                window.firebase.database.off(this.userRef);
             } catch (error) {
                 console.error('❌ Ошибка отключения userRef:', error);
             }
@@ -629,4 +639,4 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-export { DataSyncManager };
+
