@@ -70,7 +70,7 @@ async function checkAuth() {
         displayProfileInfo();
         showRoleSpecificLinks();
         
-        console.log('✅ Авторизация проверена в profile.js:', currentUser.username);
+        console.log('✅ Авторизация проверена в profile.js:', currentUser?.username || 'неизвестно');
         
     } catch (error) {
         console.error('❌ Ошибка проверки авторизации:', error);
@@ -108,14 +108,14 @@ function setupSyncEventListeners() {
 // ===== ОБРАБОТЧИКИ СОБЫТИЙ СИНХРОНИЗАЦИИ =====
 function handleUserDataUpdate(data) {
     if (data.user) {
-        const oldUser = { ...currentUser };
+        const oldUser = currentUser ? { ...currentUser } : null;
         currentUser = data.user;
         
         updateUserInfo();
         displayProfileInfo();
         
         // Показать уведомления о важных изменениях профиля
-        if (data.changes && data.changes.length > 0) {
+        if (data.changes && data.changes.length > 0 && oldUser) {
             data.changes.forEach(change => {
                 handleProfileChangeNotification(change, oldUser);
             });
@@ -129,6 +129,8 @@ function handleUserDataUpdate(data) {
 }
 
 function handleProfileChangeNotification(change, oldUser) {
+    if (!change || !change.field) return;
+    
     switch (change.field) {
         case 'role':
             showNotification(`Ваша роль изменена на: ${getRoleName(change.newValue)}`, 'info');
@@ -257,6 +259,11 @@ function getRoleName(role) {
 // ===== ЗАГРУЗКА ДАННЫХ ПРОФИЛЯ =====
 async function loadProfileData() {
     try {
+        if (!currentUser) {
+            console.warn('⚠️ currentUser не определен, пропускаем загрузку данных профиля');
+            return;
+        }
+        
         if (window.dataSyncManager) {
             // Принудительно обновить данные из Firebase
             await window.dataSyncManager.forceRefresh();
@@ -296,7 +303,7 @@ async function loadUserBetsHistory() {
         if (snapshot.exists()) {
             const allBets = snapshot.val();
             userBets = Object.entries(allBets)
-                .filter(([betId, bet]) => bet.user === currentUser.username)
+                .filter(([betId, bet]) => currentUser && bet.user === currentUser.username)
                 .map(([betId, bet]) => ({ id: betId, ...bet }))
                 .sort((a, b) => b.timestamp - a.timestamp);
             
@@ -456,6 +463,11 @@ async function changePassword() {
         return;
     }
     
+    if (!currentUser) {
+        showNotification('Пользователь не авторизован', 'error');
+        return;
+    }
+    
     if (currentPassword !== currentUser.password) {
         showNotification('Неверный текущий пароль', 'error');
         return;
@@ -473,6 +485,9 @@ async function changePassword() {
             await window.dataSyncManager.updateUserData({ password: newPassword });
         } else {
             // Обновить напрямую в Firebase
+            if (!currentUser || !currentUser.username) {
+                throw new Error('Пользователь не авторизован');
+            }
             const userRef = window.firebase.database().ref(`users/${currentUser.username}`);
             await userRef.update({ password: newPassword });
             
