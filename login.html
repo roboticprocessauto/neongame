@@ -67,19 +67,17 @@
     
     <script src="sync-manager.js"></script>
     <script src="auth.js"></script>
-        
+
+    <script>
         // Глобальная функция для показа уведомлений (доступна сразу)
         window.showNotification = function(message, type = 'error') {
             console.log(`📢 Уведомление (${type}): ${message}`);
-            
             // Удаляем предыдущие уведомления
             const existingNotifications = document.querySelectorAll('.notification');
             existingNotifications.forEach(notification => notification.remove());
-            
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
-            
             // Стили для уведомления
             notification.style.cssText = `
                 position: fixed;
@@ -97,7 +95,6 @@
                 font-size: 14px;
                 line-height: 1.4;
             `;
-            
             // Цвета по типам
             const colors = {
                 success: '#4caf50',
@@ -105,11 +102,8 @@
                 warning: '#ff9800',
                 info: '#2196f3'
             };
-            
             notification.style.backgroundColor = colors[type] || colors.info;
-            
             document.body.appendChild(notification);
-            
             // Автоудаление через 5 секунд
             setTimeout(() => {
                 if (notification.parentNode) {
