@@ -459,24 +459,19 @@ async function loadSettings() {
 async function loadEvents() {
     try {
         console.log('📅 Загрузка событий...');
-        
         const eventsRef = database.ref('events');
         const snapshot = await eventsRef.once('value');
-        
         if (snapshot.exists()) {
             events = snapshot.val();
             console.log('📅 События загружены:', Object.keys(events).length);
         } else {
-            console.log('📅 События не найдены, создаем демо события');
-            await createDemoEvents();
+            events = {};
+            console.log('📅 События не найдены');
         }
-        
         displayEvents();
-        
     } catch (error) {
         console.error('❌ Ошибка загрузки событий:', error);
         showNotification('Ошибка загрузки событий: ' + error.message, 'error');
-        
         // Показать заглушку
         const container = document.getElementById('events-container');
         if (container) {
@@ -488,102 +483,6 @@ async function loadEvents() {
             `;
         }
     }
-}
-
-async function createDemoEvents() {
-    const demoEvents = {
-        'demo1': {
-            title: 'Выборы президента США 2028',
-            description: 'Кто станет следующим президентом Соединенных Штатов Америки?',
-            category: 'politics',
-            options: ['Демократы', 'Республиканцы', 'Третья партия'],
-            coefficients: [1.8, 2.1, 8.5],
-            status: 'active',
-            createdAt: Date.now()
-        },
-        'demo2': {
-            title: 'Bitcoin достигнет $100,000',
-            description: 'Достигнет ли курс Bitcoin отметки в $100,000 до конца 2025 года?',
-            category: 'economics',
-            options: ['Да', 'Нет'],
-            coefficients: [2.5, 1.4],
-            status: 'active',
-            createdAt: Date.now()
-        },
-        'demo3': {
-            title: 'Новый iPhone в 2025',
-            description: 'Какая будет главная особенность нового iPhone в 2025 году?',
-            category: 'technology',
-            options: ['Складной экран', 'Holographic дисплей', 'Встроенный AI чип'],
-            coefficients: [3.2, 7.5, 2.8],
-            status: 'active',
-            createdAt: Date.now()
-        }
-    };
-
-    try {
-        const eventsRef = database.ref('events');
-        await eventsRef.set(demoEvents);
-        events = demoEvents;
-        console.log('✅ Демо события созданы');
-    } catch (error) {
-        console.error('❌ Ошибка создания демо событий:', error);
-        // Используем локальные демо события
-        events = demoEvents;
-    }
-}
-
-function displayEvents(filter = 'all') {
-    const container = document.getElementById('events-container');
-    if (!container) return;
-    
-    container.innerHTML = '';
-
-    const filteredEvents = Object.entries(events).filter(([id, event]) => {
-        return event.status === 'active' && (filter === 'all' || event.category === filter);
-    });
-
-    if (filteredEvents.length === 0) {
-        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий</p></div>';
-        return;
-    }
-
-    filteredEvents.forEach(([eventId, event]) => {
-        const eventElement = document.createElement('div');
-        eventElement.className = 'event-card';
-        eventElement.innerHTML = `
-            <div class="event-header">
-                <div>
-                    <div class="event-title">${event.title}</div>
-                </div>
-                <div class="event-category">${getCategoryName(event.category)}</div>
-            </div>
-            <div class="event-description">${event.description}</div>
-            <div class="event-options">
-                ${event.options.map((option, index) => `
-                    <button class="option-btn" onclick="selectOption('${eventId}', '${option}', ${event.coefficients[index]})">
-                        <span class="option-text">${option}</span>
-                        <span class="option-coefficient">${event.coefficients[index]}</span>
-                    </button>
-                `).join('')}
-            </div>
-        `;
-        container.appendChild(eventElement);
-    });
-    
-    console.log(`📊 Отображено ${filteredEvents.length} событий`);
-}
-
-function getCategoryName(category) {
-    const categories = {
-        'politics': '🏛️ Политика',
-        'entertainment': '🎭 Развлечения', 
-        'technology': '💻 Технологии',
-        'economics': '💰 Экономика',
-        'weather': '🌤️ Погода',
-        'society': '👥 Общество'
-    };
-    return categories[category] || category;
 }
 
 // ===== ФИЛЬТРАЦИЯ СОБЫТИЙ =====
