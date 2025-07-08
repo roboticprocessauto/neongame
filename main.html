@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MaxBet - События и ставки</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
     <link rel="stylesheet" href="common.css">
     <link rel="stylesheet" href="main.css">
 </head>
@@ -89,39 +90,10 @@
     
     <!-- Загрузка скриптов -->
     <script src="firebase-config.js"></script>
-    
-    <!-- Последовательная загрузка sync-manager и main.js -->
-    <script type="module">
-        console.log('📝 Начало загрузки скриптов для main.html');
-        
-        // Сначала загружаем sync-manager
-        import('./sync-manager.js').then(() => {
-            console.log('✅ Sync Manager загружен в main.html');
-            
-            // Ждем немного для полной инициализации sync-manager
-            setTimeout(() => {
-                // Затем загружаем main.js
-                import('./main.js').then(() => {
-                    console.log('✅ Main.js загружен в main.html');
-                }).catch(error => {
-                    console.error('❌ Ошибка загрузки main.js:', error);
-                    showErrorMessage('Ошибка загрузки основного модуля: ' + error.message);
-                });
-            }, 500);
-            
-        }).catch(error => {
-            console.error('❌ Ошибка загрузки sync-manager.js:', error);
-            
-            // Пытаемся загрузить main.js без sync manager (fallback режим)
-            console.log('⚠️ Попытка загрузки main.js в fallback режиме');
-            import('./main.js').then(() => {
-                console.log('⚠️ Main.js загружен в fallback режиме');
-                showWarningMessage('Приложение работает без синхронизации. Некоторые функции могут быть ограничены.');
-            }).catch(mainError => {
-                console.error('❌ Критическая ошибка загрузки main.js:', mainError);
-                showErrorMessage('Критическая ошибка загрузки. Перезагрузите страницу.');
-            });
-        });
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="sync-manager.js"></script>
+    <script src="main.js"></script>
         
         // Функции для показа сообщений
         function showErrorMessage(message) {
