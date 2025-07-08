@@ -1,4 +1,4 @@
-// ===== MAIN.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
+// ===== ИСПРАВЛЕННЫЙ MAIN.JS БЕЗ ЗАВИСИМОСТИ ОТ SYNC MANAGER =====
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { 
@@ -10,11 +10,9 @@ import {
     push as dbPush
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
-// Инициализация Firebase
-const app = initializeApp(window.firebaseConfig);
-const database = getDatabase(app);
-
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
+let app = null;
+let database = null;
 let currentUser = null;
 let events = {};
 let betSlip = [];
@@ -33,18 +31,15 @@ window.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 Инициализация main.js');
     
     try {
-        // Ждем инициализации sync manager
-        await waitForSyncManager();
+        // Инициализация Firebase
+        await initializeFirebase();
         
-        // Проверяем авторизацию и инициализируем синхронизацию
+        // Проверяем авторизацию
         await checkAuth();
         
         // Загружаем данные
         await loadSettings();
         await loadEvents();
-        
-        // Настраиваем слушатели событий синхронизации
-        setupSyncEventListeners();
         
         // Обновляем интерфейс
         updateDailyBonusButton();
@@ -53,41 +48,33 @@ window.addEventListener('DOMContentLoaded', async function() {
         
     } catch (error) {
         console.error('❌ Ошибка инициализации main.js:', error);
-        showNotification('Ошибка инициализации приложения', 'error');
+        showNotification('Ошибка инициализации приложения: ' + error.message, 'error');
     }
 });
 
-// ===== ОЖИДАНИЕ SYNC MANAGER =====
-async function waitForSyncManager() {
-    let attempts = 0;
-    const maxAttempts = 50; // 5 секунд
-    
-    while (!window.dataSyncManager && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
+// ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
+async function initializeFirebase() {
+    try {
+        if (!window.firebaseConfig) {
+            throw new Error('Firebase конфигурация не найдена');
+        }
+        
+        app = initializeApp(window.firebaseConfig);
+        database = getDatabase(app);
+        
+        console.log('🔥 Firebase инициализирован');
+    } catch (error) {
+        console.error('❌ Ошибка инициализации Firebase:', error);
+        throw error;
     }
-    
-    if (!window.dataSyncManager) {
-        throw new Error('DataSyncManager не инициализирован');
-    }
-    
-    console.log('✅ DataSyncManager готов к работе');
 }
 
-// ===== АВТОРИЗАЦИЯ С СИНХРОНИЗАЦИЕЙ =====
+// ===== АВТОРИЗАЦИЯ =====
 async function checkAuth() {
-    console.log('🔐 Проверка авторизации с синхронизацией');
+    console.log('🔐 Проверка авторизации');
     
     try {
-        // Сначала попробуем загрузить из localStorage
-        let savedUser = window.dataSyncManager.getLocalUser();
-        
-        if (!savedUser) {
-            savedUser = localStorage.getItem('currentUser');
-            if (savedUser) {
-                savedUser = JSON.parse(savedUser);
-            }
-        }
+        const savedUser = localStorage.getItem('currentUser');
         
         if (!savedUser) {
             console.log('❌ Пользователь не найден, перенаправление на login');
@@ -95,123 +82,55 @@ async function checkAuth() {
             return;
         }
         
-        console.log('👤 Найден пользователь, инициализация синхронизации:', savedUser.username);
+        currentUser = JSON.parse(savedUser);
+        console.log('👤 Найден пользователь:', currentUser.username);
         
-        // Инициализировать пользователя в sync manager
-        currentUser = await window.dataSyncManager.initializeUser(savedUser.username);
+        // Проверяем актуальность данных в Firebase
+        const userRef = dbRef(database, `users/${currentUser.username}`);
+        const snapshot = await dbGet(userRef);
+        
+        if (!snapshot.exists()) {
+            console.log('❌ Пользователь не найден в базе данных');
+            localStorage.removeItem('currentUser');
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        const firebaseData = snapshot.val();
+        
+        if (firebaseData.status !== 'active') {
+            console.log('⚠️ Аккаунт заблокирован');
+            localStorage.removeItem('currentUser');
+            showNotification('Ваш аккаунт заблокирован', 'error');
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 2000);
+            return;
+        }
+        
+        // Обновить локальные данные
+        currentUser = {
+            username: currentUser.username,
+            ...firebaseData
+        };
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
         
         // Обновить интерфейс
         updateUserInfo();
-        
-        // Показать админ/модератор ссылки
         showRoleSpecificLinks();
         
-        console.log('✅ Авторизация и синхронизация завершены');
+        console.log('✅ Авторизация завершена');
         
     } catch (error) {
         console.error('❌ Ошибка проверки авторизации:', error);
+        showNotification('Ошибка проверки авторизации: ' + error.message, 'error');
         
-        // Очистить некорректные данные и перенаправить
-        if (window.dataSyncManager) {
-            window.dataSyncManager.clearLocalData();
-        }
+        // Очистить и перенаправить
         localStorage.removeItem('currentUser');
-        window.location.href = 'login.html';
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 3000);
     }
-}
-
-// ===== НАСТРОЙКА СЛУШАТЕЛЕЙ СИНХРОНИЗАЦИИ =====
-function setupSyncEventListeners() {
-    console.log('🎧 Настройка слушателей событий синхронизации');
-    
-    window.addEventListener('dataSync', (event) => {
-        const { type, data, timestamp } = event.detail;
-        console.log(`📡 Получено событие синхронизации: ${type}`, data);
-        
-        switch (type) {
-            case 'user_updated':
-            case 'user_refreshed':
-                handleUserDataUpdate(data);
-                break;
-                
-            case 'user_updated_offline':
-                handleOfflineUserUpdate(data);
-                break;
-                
-            case 'events_updated':
-                handleEventsUpdate(data);
-                break;
-                
-            case 'settings_updated':
-                handleSettingsUpdate(data);
-                break;
-                
-            case 'connection_restored':
-                handleConnectionRestored();
-                break;
-                
-            case 'connection_lost':
-                handleConnectionLost();
-                break;
-        }
-    });
-}
-
-// ===== ОБРАБОТЧИКИ СОБЫТИЙ СИНХРОНИЗАЦИИ =====
-function handleUserDataUpdate(data) {
-    if (data.user) {
-        const oldBalance = currentUser ? currentUser.balance : 0;
-        currentUser = data.user;
-        
-        // Обновить интерфейс
-        updateUserInfo();
-        updateDailyBonusButton();
-        
-        // Показать уведомления о важных изменениях
-        if (data.changes && data.changes.length > 0) {
-            data.changes.forEach(change => {
-                if (change.field === 'balance' && change.oldValue !== undefined) {
-                    const diff = change.newValue - change.oldValue;
-                    if (Math.abs(diff) > 0) {
-                        showBalanceChangeNotification(diff);
-                    }
-                }
-            });
-        }
-        
-        console.log('🔄 Интерфейс обновлен с новыми данными пользователя');
-    }
-}
-
-function handleOfflineUserUpdate(data) {
-    if (data.user) {
-        currentUser = data.user;
-        updateUserInfo();
-        
-        // Показать индикатор офлайн обновления
-        showNotification('Данные обновлены локально (офлайн режим)', 'warning');
-    }
-}
-
-function handleEventsUpdate(data) {
-    events = data;
-    displayEvents();
-    console.log('📅 События обновлены в реальном времени');
-}
-
-function handleSettingsUpdate(data) {
-    Object.assign(settings, data);
-    console.log('⚙️ Настройки обновлены');
-}
-
-function handleConnectionRestored() {
-    showNotification('Соединение восстановлено! Синхронизация данных...', 'success');
-    updateSyncStatus(true);
-}
-
-function handleConnectionLost() {
-    showNotification('Соединение потеряно. Переход в офлайн режим.', 'warning');
-    updateSyncStatus(false);
 }
 
 // ===== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА =====
@@ -229,8 +148,7 @@ function updateUserInfo() {
         usernameElement.textContent = currentUser.username;
     }
     
-    // Обновить индикатор синхронизации
-    updateSyncStatusIndicator();
+    console.log('🔄 Интерфейс обновлен');
 }
 
 function showRoleSpecificLinks() {
@@ -243,98 +161,9 @@ function showRoleSpecificLinks() {
         adminLink.style.display = "block";
     }
     
-    if (moderatorLink && currentUser.role === "moderator") {
+    if (moderatorLink && (currentUser.role === "moderator" || currentUser.role === "admin")) {
         moderatorLink.style.display = "block";
     }
-}
-
-function updateSyncStatus(isOnline) {
-    const statusIndicator = document.getElementById('sync-status');
-    if (statusIndicator) {
-        if (isOnline) {
-            statusIndicator.innerHTML = '🟢 Синхронизировано';
-            statusIndicator.style.color = '#4caf50';
-        } else {
-            statusIndicator.innerHTML = '🔴 Офлайн';
-            statusIndicator.style.color = '#f44336';
-        }
-    }
-}
-
-function updateSyncStatusIndicator() {
-    const statusIndicator = document.getElementById('sync-status');
-    if (statusIndicator && window.dataSyncManager) {
-        const syncStatus = window.dataSyncManager.getSyncStatus();
-        const pendingCount = syncStatus.pendingUpdates;
-        
-        if (!syncStatus.online) {
-            statusIndicator.innerHTML = `🔴 Офлайн${pendingCount > 0 ? ` (${pendingCount})` : ''}`;
-            statusIndicator.style.color = '#f44336';
-        } else if (syncStatus.syncInProgress) {
-            statusIndicator.innerHTML = '🟡 Синхронизация...';
-            statusIndicator.style.color = '#ff9800';
-        } else {
-            statusIndicator.innerHTML = '🟢 Синхронизировано';
-            statusIndicator.style.color = '#4caf50';
-        }
-    }
-}
-
-// ===== УВЕДОМЛЕНИЯ =====
-function showBalanceChangeNotification(diff) {
-    const message = diff > 0 
-        ? `💰 Баланс увеличен на ${diff} лупанчиков!`
-        : `📉 Баланс уменьшен на ${Math.abs(diff)} лупанчиков`;
-        
-    showNotification(message, diff > 0 ? 'success' : 'warning');
-}
-
-function showNotification(message, type = 'info') {
-    console.log(`📢 Уведомление (${type}): ${message}`);
-    
-    // Удаляем предыдущие уведомления
-    const existingNotifications = document.querySelectorAll('.notification');
-    existingNotifications.forEach(notification => notification.remove());
-    
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    
-    // Стили для уведомления
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 10000;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        animation: slideIn 0.3s ease;
-        max-width: 400px;
-        word-wrap: break-word;
-    `;
-    
-    // Цвета по типам
-    const colors = {
-        success: '#4caf50',
-        error: '#f44336',
-        warning: '#ff9800',
-        info: '#2196f3'
-    };
-    
-    notification.style.backgroundColor = colors[type] || colors.info;
-    
-    document.body.appendChild(notification);
-    
-    // Автоудаление через 4 секунды
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.style.animation = 'slideIn 0.3s ease reverse';
-            setTimeout(() => notification.remove(), 300);
-        }
-    }, 4000);
 }
 
 // ===== ЗАГРУЗКА НАСТРОЕК =====
@@ -350,25 +179,42 @@ async function loadSettings() {
         console.log('⚙️ Настройки загружены:', settings);
     } catch (error) {
         console.error('❌ Ошибка загрузки настроек:', error);
+        showNotification('Ошибка загрузки настроек, используются значения по умолчанию', 'warning');
     }
 }
 
 // ===== ЗАГРУЗКА СОБЫТИЙ =====
 async function loadEvents() {
     try {
+        console.log('📅 Загрузка событий...');
+        
         const eventsRef = dbRef(database, 'events');
         const snapshot = await dbGet(eventsRef);
         
         if (snapshot.exists()) {
             events = snapshot.val();
+            console.log('📅 События загружены:', Object.keys(events).length);
         } else {
+            console.log('📅 События не найдены, создаем демо события');
             await createDemoEvents();
         }
         
         displayEvents();
-        console.log('📅 События загружены');
+        
     } catch (error) {
         console.error('❌ Ошибка загрузки событий:', error);
+        showNotification('Ошибка загрузки событий: ' + error.message, 'error');
+        
+        // Показать заглушку
+        const container = document.getElementById('events-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="bet-slip-empty">
+                    <p>Ошибка загрузки событий</p>
+                    <button class="btn" onclick="loadEvents()">Попробовать снова</button>
+                </div>
+            `;
+        }
     }
 }
 
@@ -407,8 +253,11 @@ async function createDemoEvents() {
         const eventsRef = dbRef(database, 'events');
         await dbSet(eventsRef, demoEvents);
         events = demoEvents;
+        console.log('✅ Демо события созданы');
     } catch (error) {
         console.error('❌ Ошибка создания демо событий:', error);
+        // Используем локальные демо события
+        events = demoEvents;
     }
 }
 
@@ -449,6 +298,8 @@ function displayEvents(filter = 'all') {
         `;
         container.appendChild(eventElement);
     });
+    
+    console.log(`📊 Отображено ${filteredEvents.length} событий`);
 }
 
 function getCategoryName(category) {
@@ -581,7 +432,7 @@ function updatePotentialWin() {
     }
 }
 
-// ===== РАЗМЕЩЕНИЕ СТАВОК С СИНХРОНИЗАЦИЕЙ =====
+// ===== РАЗМЕЩЕНИЕ СТАВОК =====
 async function placeBet(type) {
     if (!currentUser) {
         showNotification('Войдите в систему', 'error');
@@ -641,9 +492,15 @@ async function placeBet(type) {
 
         await dbSet(newBetRef, bet);
 
-        // Обновить баланс пользователя через sync manager
+        // Обновить баланс пользователя
         const newBalance = currentUser.balance - amount;
-        await window.dataSyncManager.updateUserData({ balance: newBalance });
+        const userRef = dbRef(database, `users/${currentUser.username}`);
+        await dbUpdate(userRef, { balance: newBalance });
+
+        // Обновить локальные данные
+        currentUser.balance = newBalance;
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        updateUserInfo();
 
         // Очистить корзину ставок
         betSlip = [];
@@ -653,7 +510,7 @@ async function placeBet(type) {
 
     } catch (error) {
         console.error('❌ Ошибка размещения ставки:', error);
-        showNotification('Ошибка размещения ставки', 'error');
+        showNotification('Ошибка размещения ставки: ' + error.message, 'error');
     }
 }
 
@@ -756,72 +613,90 @@ async function claimDailyBonus() {
     const reward = dailyRewards[nextIndex];
 
     try {
-        // Обновить данные пользователя через sync manager
-        await window.dataSyncManager.updateUserData({
+        // Обновить данные пользователя
+        const userRef = dbRef(database, `users/${currentUser.username}`);
+        await dbUpdate(userRef, {
             balance: currentUser.balance + reward,
             bonusDay: nextIndex + 1,
             lastBonusDate: today
         });
 
+        // Обновить локальные данные
+        currentUser.balance += reward;
+        currentUser.bonusDay = nextIndex + 1;
+        currentUser.lastBonusDate = today;
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+        updateUserInfo();
         updateDailyBonusButton();
         closeDailyBonusModal();
         showNotification(`Вы получили ${reward} лупанчиков!`, 'success');
         
     } catch (error) {
         console.error('❌ Ошибка начисления бонуса:', error);
-        showNotification('Не удалось получить бонус', 'error');
+        showNotification('Не удалось получить бонус: ' + error.message, 'error');
     }
+}
+
+// ===== УВЕДОМЛЕНИЯ =====
+function showNotification(message, type = 'info') {
+    console.log(`📢 Уведомление (${type}): ${message}`);
+    
+    // Удаляем предыдущие уведомления
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => notification.remove());
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    // Стили для уведомления
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+        word-wrap: break-word;
+    `;
+    
+    // Цвета по типам
+    const colors = {
+        success: '#4caf50',
+        error: '#f44336',
+        warning: '#ff9800',
+        info: '#2196f3'
+    };
+    
+    notification.style.backgroundColor = colors[type] || colors.info;
+    
+    document.body.appendChild(notification);
+    
+    // Автоудаление через 4 секунды
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, 4000);
 }
 
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
 function logout() {
     try {
-        // Очистить sync manager
-        if (window.dataSyncManager) {
-            window.dataSyncManager.cleanup();
-            window.dataSyncManager.clearLocalData();
-        }
-        
-        // Очистить localStorage
         localStorage.removeItem('currentUser');
-        
-        // Перенаправить на страницу входа
         window.location.href = 'login.html';
     } catch (error) {
         console.error('❌ Ошибка выхода из системы:', error);
-        // В любом случае перенаправить
         window.location.href = 'login.html';
     }
 }
-
-// ===== ДОБАВЛЕНИЕ ИНДИКАТОРА СИНХРОНИЗАЦИИ =====
-function addSyncStatusIndicator() {
-    const header = document.querySelector('.header .user-info');
-    if (header && !document.getElementById('sync-status')) {
-        const syncStatus = document.createElement('div');
-        syncStatus.id = 'sync-status';
-        syncStatus.style.cssText = `
-            display: flex;
-            align-items: center;
-            font-size: 12px;
-            color: #4caf50;
-            margin-left: 10px;
-            padding: 2px 6px;
-            border-radius: 12px;
-            background: rgba(76, 175, 80, 0.1);
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        `;
-        syncStatus.innerHTML = '🟢 Синхронизировано';
-        header.appendChild(syncStatus);
-        
-        console.log('📊 Индикатор синхронизации добавлен');
-    }
-}
-
-// Добавить индикатор после загрузки DOM
-setTimeout(() => {
-    addSyncStatusIndicator();
-}, 1000);
 
 // ===== ЭКСПОРТ ФУНКЦИЙ =====
 window.filterEvents = filterEvents;
@@ -833,11 +708,15 @@ window.placeBet = placeBet;
 window.logout = logout;
 window.openDailyBonusModal = openDailyBonusModal;
 window.closeDailyBonusModal = closeDailyBonusModal;
+window.loadEvents = loadEvents;
 
-// Глобальная функция для тестирования синхронизации
-window.testSync = function() {
-    if (window.dataSyncManager) {
-        console.log('🧪 Статус синхронизации:', window.dataSyncManager.getSyncStatus());
-        console.log('👤 Текущий пользователь:', window.dataSyncManager.getCurrentUser());
-    }
-};
+// ===== ОБРАБОТКА ОШИБОК =====
+window.addEventListener('error', function(event) {
+    console.error('🚨 JavaScript ошибка в main.js:', event.error);
+    console.error('📍 Файл:', event.filename, 'Строка:', event.lineno);
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('🚨 Необработанная Promise ошибка:', event.reason);
+    event.preventDefault();
+});
