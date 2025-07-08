@@ -94,7 +94,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="sync-manager.js"></script>
     <script src="main.js"></script>
-        
+
+    <script>
         // Функции для показа сообщений
         function showErrorMessage(message) {
             const container = document.querySelector('.main-content');
@@ -111,7 +112,7 @@
                 `;
             }
         }
-        
+
         function showWarningMessage(message) {
             const header = document.querySelector('.header');
             if (header) {
@@ -126,7 +127,7 @@
                 `;
                 warning.textContent = '⚠️ ' + message;
                 header.parentNode.insertBefore(warning, header.nextSibling);
-                
+
                 // Автоскрытие через 10 секунд
                 setTimeout(() => {
                     if (warning.parentNode) warning.remove();
