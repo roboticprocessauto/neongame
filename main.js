@@ -1,18 +1,18 @@
 // ===== MAIN.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { 
-    getDatabase, 
-    ref as dbRef, 
-    set as dbSet, 
-    get as dbGet, 
-    update as dbUpdate, 
-    push as dbPush
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+// Используем совместимую версию Firebase
+let database = null;
 
 // Инициализация Firebase
-const app = initializeApp(window.firebaseConfig);
-const database = getDatabase(app);
+function initializeFirebase() {
+    if (!window.firebase) {
+        throw new Error('Firebase не загружен');
+    }
+    
+    const app = window.firebase.initializeApp(window.firebaseConfig);
+    database = window.firebase.database();
+    console.log('🔥 Firebase инициализирован в main.js');
+}
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
@@ -33,6 +33,9 @@ window.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 Инициализация main.js');
     
     try {
+        // Инициализируем Firebase
+        initializeFirebase();
+        
         // Ждем инициализации sync manager
         await waitForSyncManager();
         
@@ -152,8 +155,8 @@ async function checkAuthFallback() {
         console.log('👤 Найден пользователь:', currentUser.username);
         
         // Проверяем актуальность данных в Firebase
-        const userRef = dbRef(database, `users/${currentUser.username}`);
-        const snapshot = await dbGet(userRef);
+        const userRef = database.ref(`users/${currentUser.username}`);
+        const snapshot = await userRef.once('value');
         
         if (!snapshot.exists()) {
             console.log('❌ Пользователь не найден в базе данных');
@@ -439,8 +442,8 @@ function showNotification(message, type = 'info') {
 // ===== ЗАГРУЗКА НАСТРОЕК =====
 async function loadSettings() {
     try {
-        const settingsRef = dbRef(database, 'settings');
-        const snapshot = await dbGet(settingsRef);
+        const settingsRef = database.ref('settings');
+        const snapshot = await settingsRef.once('value');
         
         if (snapshot.exists()) {
             Object.assign(settings, snapshot.val());
@@ -457,8 +460,8 @@ async function loadEvents() {
     try {
         console.log('📅 Загрузка событий...');
         
-        const eventsRef = dbRef(database, 'events');
-        const snapshot = await dbGet(eventsRef);
+        const eventsRef = database.ref('events');
+        const snapshot = await eventsRef.once('value');
         
         if (snapshot.exists()) {
             events = snapshot.val();
@@ -519,8 +522,8 @@ async function createDemoEvents() {
     };
 
     try {
-        const eventsRef = dbRef(database, 'events');
-        await dbSet(eventsRef, demoEvents);
+        const eventsRef = database.ref('events');
+        await eventsRef.set(demoEvents);
         events = demoEvents;
         console.log('✅ Демо события созданы');
     } catch (error) {
@@ -746,8 +749,8 @@ async function placeBet(type) {
         }
 
         // Создать ставку в базе данных
-        const betsRef = dbRef(database, 'bets');
-        const newBetRef = dbPush(betsRef);
+        const betsRef = database.ref('bets');
+        const newBetRef = betsRef.push();
 
         const bet = {
             user: currentUser.username,
@@ -759,7 +762,7 @@ async function placeBet(type) {
             events: eventList
         };
 
-        await dbSet(newBetRef, bet);
+        await newBetRef.set(bet);
 
         // Обновить баланс пользователя через sync manager или напрямую
         const newBalance = currentUser.balance - amount;
@@ -768,8 +771,8 @@ async function placeBet(type) {
             await window.dataSyncManager.updateUserData({ balance: newBalance });
         } else {
             // Fallback: обновить напрямую
-            const userRef = dbRef(database, `users/${currentUser.username}`);
-            await dbUpdate(userRef, { balance: newBalance });
+                    const userRef = database.ref(`users/${currentUser.username}`);
+        await userRef.update({ balance: newBalance });
             
             currentUser.balance = newBalance;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -898,8 +901,8 @@ async function claimDailyBonus() {
             await window.dataSyncManager.updateUserData(updateData);
         } else {
             // Fallback: обновить напрямую
-            const userRef = dbRef(database, `users/${currentUser.username}`);
-            await dbUpdate(userRef, updateData);
+                    const userRef = database.ref(`users/${currentUser.username}`);
+        await userRef.update(updateData);
             
             Object.assign(currentUser, updateData);
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
