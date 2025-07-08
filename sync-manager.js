@@ -26,7 +26,7 @@ class DataSyncManager {
             await this.waitForFirebase();
             
             this.app = window.firebase.initializeApp(window.firebaseConfig);
-            this.database = window.firebase.database.getDatabase(this.app);
+            this.database = window.firebase.database();
             this.setupEventListeners();
             this.loadPendingUpdates();
             console.log('🔄 DataSyncManager инициализирован');
@@ -61,10 +61,10 @@ class DataSyncManager {
             this.cleanup();
             
             // Установить ссылку на пользователя
-            this.userRef = window.firebase.database.ref(this.database, `users/${username}`);
+            this.userRef = this.database.ref(`users/${username}`);
             
             // Получить актуальные данные из Firebase
-            const snapshot = await window.firebase.database.get(this.userRef);
+            const snapshot = await this.userRef.once('value');
             
             if (!snapshot.exists()) {
                 throw new Error('Пользователь не найден в базе данных');
@@ -108,7 +108,7 @@ class DataSyncManager {
         console.log('🎧 Настройка real-time слушателей');
         
         // Слушатель изменений пользователя
-        const userUnsubscribe = window.firebase.database.onValue(this.userRef, (snapshot) => {
+        const userUnsubscribe = this.userRef.on('value', (snapshot) => {
             if (snapshot.exists()) {
                 const firebaseData = snapshot.val();
                 const oldUser = { ...this.currentUser };
@@ -144,8 +144,8 @@ class DataSyncManager {
         this.listeners.set('user', userUnsubscribe);
         
         // Слушатель настроек системы
-        const settingsRef = window.firebase.database.ref(this.database, 'settings');
-        const settingsUnsubscribe = window.firebase.database.onValue(settingsRef, (snapshot) => {
+        const settingsRef = this.database.ref('settings');
+        const settingsUnsubscribe = settingsRef.on('value', (snapshot) => {
             if (snapshot.exists()) {
                 const settings = snapshot.val();
                 this.notifyDataChange('settings_updated', settings);
@@ -156,8 +156,8 @@ class DataSyncManager {
         this.listeners.set('settings', settingsUnsubscribe);
         
         // Слушатель событий (для real-time обновлений)
-        const eventsRef = window.firebase.database.ref(this.database, 'events');
-        const eventsUnsubscribe = window.firebase.database.onValue(eventsRef, (snapshot) => {
+        const eventsRef = this.database.ref('events');
+        const eventsUnsubscribe = eventsRef.on('value', (snapshot) => {
             if (snapshot.exists()) {
                 const events = snapshot.val();
                 this.notifyDataChange('events_updated', events);
@@ -174,16 +174,16 @@ class DataSyncManager {
         
         try {
             // Установить статус "offline" при отключении
-            const presenceRef = window.firebase.database.ref(this.database, `presence/${this.currentUser.username}`);
-            window.firebase.database.onDisconnect(presenceRef).set({
+            const presenceRef = this.database.ref(`presence/${this.currentUser.username}`);
+            presenceRef.onDisconnect().set({
                 online: false,
-                lastSeen: window.firebase.database.serverTimestamp()
+                lastSeen: this.database.ServerValue.TIMESTAMP
             });
             
             // Установить статус "online" сейчас
-            window.firebase.database.update(presenceRef, {
+            presenceRef.update({
                 online: true,
-                lastConnected: window.firebase.database.serverTimestamp()
+                lastConnected: this.database.ServerValue.TIMESTAMP
             });
             
             console.log('🔌 Обработчики отключения настроены');
@@ -289,7 +289,7 @@ class DataSyncManager {
         if (!this.userRef) return;
         
         try {
-            const snapshot = await window.firebase.database.get(this.userRef);
+            const snapshot = await this.userRef.once('value');
             
             if (snapshot.exists()) {
                 const firebaseData = snapshot.val();
@@ -329,12 +329,12 @@ class DataSyncManager {
             
             const updateData = {
                 ...updates,
-                lastUpdated: window.firebase.database.serverTimestamp()
+                lastUpdated: this.database.ServerValue.TIMESTAMP
             };
             
             if (this.isOnline) {
                 // Обновить в Firebase
-                await window.firebase.database.update(this.userRef, updateData);
+                await this.userRef.update(updateData);
                 console.log('✅ Данные обновлены в Firebase');
                 
                 // Обновить локальные данные только если это не пришло от слушателя
@@ -410,7 +410,7 @@ class DataSyncManager {
         
         for (const [updateId, updateInfo] of updates) {
             try {
-                await window.firebase.database.update(this.userRef, updateInfo.data);
+                await this.userRef.update(updateInfo.data);
                 this.pendingUpdates.delete(updateId);
                 console.log(`✅ Отложенное обновление ${updateId} синхронизировано`);
             } catch (error) {
@@ -587,7 +587,7 @@ class DataSyncManager {
         // Очистить ссылку на пользователя
         if (this.userRef) {
             try {
-                window.firebase.database.off(this.userRef);
+                this.userRef.off();
             } catch (error) {
                 console.error('❌ Ошибка отключения userRef:', error);
             }
