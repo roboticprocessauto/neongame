@@ -58,28 +58,18 @@ async function initializeFirebase() {
             throw new Error('Firebase конфигурация не найдена');
         }
 
-        // Загружаем Firebase SDK через CDN
-        if (!window.firebase) {
-            await loadFirebaseSDK();
-        }
+        // Ждем загрузки Firebase
+        await waitForFirebase();
 
-        const { initializeApp } = window.firebase;
-        const { 
-            getDatabase, 
-            ref, 
-            set, 
-            get, 
-            update
-        } = window.firebase.database;
-
-        const app = initializeApp(window.firebaseConfig);
-        database = getDatabase(app);
+        // Используем совместимую версию Firebase
+        const app = window.firebase.initializeApp(window.firebaseConfig);
+        database = window.firebase.database();
         
         // Присваиваем функции к глобальным переменным для использования
-        dbRef = ref;
-        dbSet = set;
-        dbGet = get;
-        dbUpdate = update;
+        dbRef = window.firebase.database().ref;
+        dbSet = window.firebase.database().ref().set;
+        dbGet = window.firebase.database().ref().once;
+        dbUpdate = window.firebase.database().ref().update;
         
         console.log('🔥 Firebase инициализирован для auth.js');
     } catch (error) {
@@ -88,32 +78,21 @@ async function initializeFirebase() {
     }
 }
 
-// ===== ЗАГРУЗКА FIREBASE SDK =====
-async function loadFirebaseSDK() {
-    return new Promise((resolve, reject) => {
-        // Проверяем, не загружен ли уже Firebase
-        if (window.firebase) {
-            resolve();
-            return;
-        }
-
-        // Загружаем Firebase App
-        const appScript = document.createElement('script');
-        appScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        appScript.onload = () => {
-            // Загружаем Firebase Database
-            const dbScript = document.createElement('script');
-            dbScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-            dbScript.onload = () => {
-                console.log('📦 Firebase SDK загружен');
-                resolve();
-            };
-            dbScript.onerror = reject;
-            document.head.appendChild(dbScript);
-        };
-        appScript.onerror = reject;
-        document.head.appendChild(appScript);
-    });
+// ===== ОЖИДАНИЕ FIREBASE =====
+async function waitForFirebase() {
+    let attempts = 0;
+    const maxAttempts = 50; // 5 секунд
+    
+    while (!window.firebase && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    
+    if (!window.firebase) {
+        throw new Error('Firebase не загружен');
+    }
+    
+    console.log('🔥 Firebase готов для auth.js');
 }
 
 // ===== ПРОВЕРКА СУЩЕСТВУЮЩЕЙ АВТОРИЗАЦИИ =====
@@ -150,8 +129,8 @@ async function checkExistingAuth() {
         console.log(`👤 Найден сохраненный пользователь: ${savedUser.username}`);
         
         // Проверить актуальность данных в Firebase
-        const userRef = dbRef(database, `users/${savedUser.username}`);
-        const snapshot = await dbGet(userRef);
+        const userRef = window.firebase.database().ref(`users/${savedUser.username}`);
+        const snapshot = await userRef.once('value');
         
         if (!snapshot.exists()) {
             console.log('❌ Пользователь не найден в базе данных');
@@ -314,12 +293,12 @@ async function attemptLogin() {
         console.log(`👤 Попытка входа для пользователя: ${username}`);
         
         // Убедимся что Firebase инициализирован
-        if (!database || !dbRef || !dbGet) {
+        if (!window.firebase) {
             throw new Error('Firebase не инициализирован');
         }
         
-        const userRef = dbRef(database, `users/${username}`);
-        const snapshot = await dbGet(userRef);
+        const userRef = window.firebase.database().ref(`users/${username}`);
+        const snapshot = await userRef.once('value');
         
         if (!snapshot.exists()) {
             console.log(`❌ Пользователь ${username} не найден`);
@@ -420,12 +399,12 @@ async function attemptRegister() {
         console.log(`📝 Попытка регистрации пользователя: ${username}`);
         
         // Убедимся что Firebase инициализирован
-        if (!database || !dbRef || !dbGet || !dbSet) {
+        if (!window.firebase) {
             throw new Error('Firebase не инициализирован');
         }
         
-        const userRef = dbRef(database, `users/${username}`);
-        const snapshot = await dbGet(userRef);
+        const userRef = window.firebase.database().ref(`users/${username}`);
+        const snapshot = await userRef.once('value');
         
         if (snapshot.exists()) {
             console.log(`❌ Пользователь ${username} уже существует`);
@@ -443,7 +422,7 @@ async function attemptRegister() {
             lastUpdated: Date.now()
         };
         
-        await dbSet(userRef, newUser);
+        await userRef.set(newUser);
         console.log(`✅ Пользователь ${username} зарегистрирован`);
         
         showNotification('Регистрация прошла успешно! Теперь войдите в систему.', 'success');
@@ -551,12 +530,12 @@ async function testFirebaseConnection() {
     try {
         console.log('🧪 Тестирование подключения к Firebase...');
         
-        if (!database || !dbRef || !dbSet) {
+        if (!window.firebase) {
             throw new Error('Firebase не инициализирован');
         }
         
-        const testRef = dbRef(database, 'test');
-        await dbSet(testRef, { timestamp: Date.now(), test: true });
+        const testRef = window.firebase.database().ref('test');
+        await testRef.set({ timestamp: Date.now(), test: true });
         console.log('✅ Firebase подключение работает');
         showNotification('Firebase подключение работает!', 'success');
     } catch (error) {
@@ -570,9 +549,10 @@ window.addEventListener('error', function(event) {
     console.error('🚨 Критическая ошибка JavaScript:', event.error);
     
     // Очистить данные при критической ошибке связанной с Firebase или сетью
-    if (event.error.message.includes('Firebase') || 
+    if (event.error && event.error.message && (
+        event.error.message.includes('Firebase') || 
         event.error.message.includes('network') ||
-        event.error.message.includes('fetch')) {
+        event.error.message.includes('fetch'))) {
         clearUserData();
         showNotification('Произошла критическая ошибка. Данные очищены.', 'error');
     }
