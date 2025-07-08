@@ -17,7 +17,7 @@ function initializeFirebase() {
 }
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-let currentUser = null;
+window.currentUser = null;
 window.events = {};
 let betSlip = [];
 let settings = {
@@ -128,8 +128,8 @@ async function checkAuth() {
         console.log('👤 Найден пользователь, инициализация синхронизации:', savedUser.username);
         
         // Инициализировать пользователя в sync manager
-        currentUser = await window.dataSyncManager.initializeUser(savedUser.username);
-        console.log('currentUser после initializeUser:', currentUser);
+        window.currentUser = await window.dataSyncManager.initializeUser(savedUser.username);
+        console.log('window.currentUser после initializeUser:', window.currentUser);
         
         // Обновить интерфейс
         updateUserInfo();
@@ -158,11 +158,11 @@ async function checkAuthFallback() {
             return;
         }
         
-        currentUser = JSON.parse(savedUser);
-        console.log('👤 Найден пользователь:', currentUser.username);
+        window.currentUser = JSON.parse(savedUser);
+        console.log('👤 Найден пользователь:', window.currentUser.username);
         
         // Проверяем актуальность данных в Firebase
-        const userRef = database.ref(`users/${currentUser.username}`);
+        const userRef = database.ref(`users/${window.currentUser.username}`);
         const snapshot = await userRef.once('value');
         
         if (!snapshot.exists()) {
@@ -183,11 +183,11 @@ async function checkAuthFallback() {
         }
         
         // Обновить локальные данные
-        currentUser = {
-            username: currentUser.username,
+        window.currentUser = {
+            username: window.currentUser.username,
             ...firebaseData
         };
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        localStorage.setItem('currentUser', JSON.stringify(window.currentUser));
         
         updateUserInfo();
         showRoleSpecificLinks();
@@ -245,8 +245,8 @@ function setupSyncEventListeners() {
 // ===== ОБРАБОТЧИКИ СОБЫТИЙ СИНХРОНИЗАЦИИ =====
 function handleUserDataUpdate(data) {
     if (data.user) {
-        const oldBalance = currentUser ? currentUser.balance : 0;
-        currentUser = data.user;
+        const oldBalance = window.currentUser ? window.currentUser.balance : 0;
+        window.currentUser = data.user;
         
         // Обновить интерфейс
         updateUserInfo();
@@ -270,7 +270,7 @@ function handleUserDataUpdate(data) {
 
 function handleOfflineUserUpdate(data) {
     if (data.user) {
-        currentUser = data.user;
+        window.currentUser = data.user;
         updateUserInfo();
         
         // Показать индикатор офлайн обновления
@@ -301,26 +301,26 @@ function handleConnectionLost() {
 
 // ===== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА =====
 function updateUserInfo() {
-    console.log('Вызван updateUserInfo, currentUser:', currentUser);
-    if (!currentUser) {
+    console.log('Вызван updateUserInfo, window.currentUser:', window.currentUser);
+    if (!window.currentUser) {
         const savedUser = localStorage.getItem('currentUser');
         if (savedUser) {
-            currentUser = JSON.parse(savedUser);
-            console.log('currentUser восстановлен из localStorage:', currentUser);
+            window.currentUser = JSON.parse(savedUser);
+            console.log('window.currentUser восстановлен из localStorage:', window.currentUser);
         } else {
-            console.warn('currentUser не найден даже в localStorage');
+            console.warn('window.currentUser не найден даже в localStorage');
         }
     }
     const balanceElement = document.getElementById('user-balance');
     const usernameElement = document.getElementById('username');
     if (balanceElement) {
-        balanceElement.textContent = currentUser && currentUser.balance !== undefined ? `${currentUser.balance.toLocaleString()} лупанчиков` : 'нет данных';
+        balanceElement.textContent = window.currentUser && window.currentUser.balance !== undefined ? `${window.currentUser.balance.toLocaleString()} лупанчиков` : 'нет данных';
         console.log('Обновлен баланс:', balanceElement.textContent);
     } else {
         console.warn('balanceElement не найден');
     }
     if (usernameElement) {
-        usernameElement.textContent = currentUser && currentUser.username ? currentUser.username : 'нет данных';
+        usernameElement.textContent = window.currentUser && window.currentUser.username ? window.currentUser.username : 'нет данных';
         console.log('Обновлен username:', usernameElement.textContent);
     } else {
         console.warn('usernameElement не найден');
@@ -330,16 +330,16 @@ function updateUserInfo() {
 }
 
 function showRoleSpecificLinks() {
-    if (!currentUser) return;
+    if (!window.currentUser) return;
     
     const adminLink = document.getElementById("admin-link");
     const moderatorLink = document.getElementById("moderator-link");
     
-    if (adminLink && currentUser.role === "admin") {
+    if (adminLink && window.currentUser.role === "admin") {
         adminLink.style.display = "block";
     }
     
-    if (moderatorLink && (currentUser.role === "moderator" || currentUser.role === "admin")) {
+    if (moderatorLink && (window.currentUser.role === "moderator" || window.currentUser.role === "admin")) {
         moderatorLink.style.display = "block";
     }
 }
@@ -518,7 +518,7 @@ function filterEvents(category) {
 
 // ===== КОРЗИНА СТАВОК =====
 function selectOption(eventId, option, coefficient) {
-    if (!currentUser) {
+    if (!window.currentUser) {
         showNotification('Войдите в систему для размещения ставок', 'error');
         return;
     }
@@ -586,7 +586,7 @@ function updateBetSlipDisplay() {
                    id="bet-amount" 
                    placeholder="Сумма ставки" 
                    min="${settings.minBetAmount}" 
-                   max="${Math.min(currentUser.balance, currentUser.betLimit || settings.maxBetAmount)}"
+                   max="${Math.min(window.currentUser.balance, window.currentUser.betLimit || settings.maxBetAmount)}"
                    oninput="updatePotentialWin()">
             
             <div id="potential-win" class="potential-win" style="display: none;"></div>
@@ -629,7 +629,7 @@ function updatePotentialWin() {
 
 // ===== РАЗМЕЩЕНИЕ СТАВОК С СИНХРОНИЗАЦИЕЙ =====
 async function placeBet(type) {
-    if (!currentUser) {
+    if (!window.currentUser) {
         showNotification('Войдите в систему', 'error');
         return;
     }
@@ -646,13 +646,13 @@ async function placeBet(type) {
         return;
     }
 
-    if (amount > currentUser.balance) {
+    if (amount > window.currentUser.balance) {
         showNotification('Недостаточно средств', 'error');
         return;
     }
 
-    if (amount > (currentUser.betLimit || settings.maxBetAmount)) {
-        showNotification(`Превышен лимит ставки: ${currentUser.betLimit || settings.maxBetAmount} лупанчиков`, 'error');
+    if (amount > (window.currentUser.betLimit || settings.maxBetAmount)) {
+        showNotification(`Превышен лимит ставки: ${window.currentUser.betLimit || settings.maxBetAmount} лупанчиков`, 'error');
         return;
     }
 
@@ -676,7 +676,7 @@ async function placeBet(type) {
         const newBetRef = betsRef.push();
 
         const bet = {
-            user: currentUser.username,
+            user: window.currentUser.username,
             type: type,
             amount: amount,
             coefficient: parseFloat(coefficient.toFixed(2)),
@@ -688,17 +688,17 @@ async function placeBet(type) {
         await newBetRef.set(bet);
 
         // Обновить баланс пользователя через sync manager или напрямую
-        const newBalance = currentUser.balance - amount;
+        const newBalance = window.currentUser.balance - amount;
         
         if (window.dataSyncManager) {
             await window.dataSyncManager.updateUserData({ balance: newBalance });
         } else {
             // Fallback: обновить напрямую
-                    const userRef = database.ref(`users/${currentUser.username}`);
+                    const userRef = database.ref(`users/${window.currentUser.username}`);
         await userRef.update({ balance: newBalance });
             
-            currentUser.balance = newBalance;
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            window.currentUser.balance = newBalance;
+            localStorage.setItem('currentUser', JSON.stringify(window.currentUser));
             updateUserInfo();
         }
 
@@ -717,10 +717,10 @@ async function placeBet(type) {
 // ===== ЕЖЕДНЕВНЫЙ БОНУС =====
 function updateDailyBonusButton() {
     const btn = document.getElementById('daily-bonus-btn');
-    if (!btn || !currentUser) return;
+    if (!btn || !window.currentUser) return;
     
     const today = new Date().toISOString().split('T')[0];
-    if (currentUser.lastBonusDate === today) {
+    if (window.currentUser.lastBonusDate === today) {
         btn.disabled = true;
         btn.textContent = 'Бонус получен';
     } else {
@@ -731,19 +731,19 @@ function updateDailyBonusButton() {
 }
 
 function getNextBonusIndex() {
-    if (!currentUser) return 0;
+    if (!window.currentUser) return 0;
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
     const yestStr = yesterday.toISOString().split('T')[0];
 
-    if (currentUser.lastBonusDate === todayStr) {
-        return ((currentUser.bonusDay || 1) - 1) % 7;
+    if (window.currentUser.lastBonusDate === todayStr) {
+        return ((window.currentUser.bonusDay || 1) - 1) % 7;
     }
 
-    if (currentUser.lastBonusDate === yestStr) {
-        return (currentUser.bonusDay || 0) % 7;
+    if (window.currentUser.lastBonusDate === yestStr) {
+        return (window.currentUser.bonusDay || 0) % 7;
     }
 
     return 0;
@@ -786,15 +786,15 @@ function generateBonusCalendar() {
 }
 
 function hasClaimedToday() {
-    if (!currentUser) return false;
+    if (!window.currentUser) return false;
     const today = new Date().toISOString().split('T')[0];
-    return currentUser.lastBonusDate === today;
+    return window.currentUser.lastBonusDate === today;
 }
 
 async function claimDailyBonus() {
-    if (!currentUser) return;
+    if (!window.currentUser) return;
     const today = new Date().toISOString().split('T')[0];
-    if (currentUser.lastBonusDate === today) {
+    if (window.currentUser.lastBonusDate === today) {
         showNotification('Бонус уже получен сегодня', 'error');
         return;
     }
@@ -804,8 +804,8 @@ async function claimDailyBonus() {
     const yestStr = yesterday.toISOString().split('T')[0];
 
     let nextIndex;
-    if (currentUser.lastBonusDate === yestStr) {
-        nextIndex = (currentUser.bonusDay || 0) % 7;
+    if (window.currentUser.lastBonusDate === yestStr) {
+        nextIndex = (window.currentUser.bonusDay || 0) % 7;
     } else {
         nextIndex = 0;
     }
@@ -815,7 +815,7 @@ async function claimDailyBonus() {
     try {
         // Обновить данные пользователя через sync manager или напрямую
         const updateData = {
-            balance: currentUser.balance + reward,
+            balance: window.currentUser.balance + reward,
             bonusDay: nextIndex + 1,
             lastBonusDate: today
         };
@@ -824,11 +824,11 @@ async function claimDailyBonus() {
             await window.dataSyncManager.updateUserData(updateData);
         } else {
             // Fallback: обновить напрямую
-                    const userRef = database.ref(`users/${currentUser.username}`);
+                    const userRef = database.ref(`users/${window.currentUser.username}`);
         await userRef.update(updateData);
             
-            Object.assign(currentUser, updateData);
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            Object.assign(window.currentUser, updateData);
+            localStorage.setItem('currentUser', JSON.stringify(window.currentUser));
             updateUserInfo();
         }
 
