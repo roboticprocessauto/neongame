@@ -3,6 +3,19 @@
 // Используем совместимую версию Firebase
 let database = null;
 
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+function getCategoryName(category) {
+    const categories = {
+        'politics': '🏛️ Политика',
+        'entertainment': '🎭 Развлечения',
+        'technology': '💻 Технологии',
+        'economics': '💰 Экономика',
+        'weather': '🌤️ Погода',
+        'society': '👥 Общество'
+    };
+    return categories[category] || category;
+}
+
 // Инициализация Firebase
 function initializeFirebase() {
     if (!window.firebase) {
@@ -53,7 +66,14 @@ window.addEventListener('DOMContentLoaded', async function() {
         // Настраиваем слушатели событий синхронизации
         setupSyncEventListeners();
         
+        // Синхронизируем пользователя если нужно
+        if (!window.currentUser && window.dataSyncManager && window.dataSyncManager.getCurrentUser()) {
+            window.currentUser = window.dataSyncManager.getCurrentUser();
+            console.log('🔄 Пользователь синхронизирован при инициализации:', window.currentUser);
+        }
+        
         // Обновляем интерфейс
+        updateUserInfo();
         updateDailyBonusButton();
         
         console.log('✅ main.js полностью инициализирован');
@@ -848,19 +868,6 @@ async function claimDailyBonus() {
     }
 }
 
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-function getCategoryName(category) {
-    const categories = {
-        'politics': '🏛️ Политика',
-        'entertainment': '🎭 Развлечения',
-        'technology': '💻 Технологии',
-        'economics': '💰 Экономика',
-        'weather': '🌤️ Погода',
-        'society': '👥 Общество'
-    };
-    return categories[category] || category;
-}
-
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
 function logout() {
     try {
@@ -895,6 +902,7 @@ window.closeDailyBonusModal = closeDailyBonusModal;
 window.loadEvents = loadEvents;
 window.getCategoryName = getCategoryName;
 window.displayEvents = displayEvents;
+window.syncUser = syncUser;
 
 // Глобальная функция для тестирования синхронизации
 window.testSync = function() {
