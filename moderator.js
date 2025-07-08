@@ -1,17 +1,5 @@
 // ===== ИНИЦИАЛИЗАЦИЯ FIREBASE =====
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import {
-    getDatabase,
-    ref as dbRef,
-    set as dbSet,
-    get as dbGet,
-    update as dbUpdate,
-    push as dbPush,
-    remove as dbRemove
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-const app = initializeApp(window.firebaseConfig);
-const database = getDatabase(app);
+// Используем Firebase compat API вместо ES6 импортов
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
@@ -20,8 +8,19 @@ let bets = {};
 
 // ===== ВЫХОД =====
 function logout() {
-    localStorage.removeItem('currentUser');
-    window.location.href = 'login.html';
+    try {
+        // Очистить sync manager если доступен
+        if (window.dataSyncManager) {
+            window.dataSyncManager.cleanup();
+            window.dataSyncManager.clearLocalData();
+        }
+        
+        localStorage.removeItem('currentUser');
+        window.location.href = 'login.html';
+    } catch (error) {
+        console.error('❌ Ошибка выхода из системы:', error);
+        window.location.href = 'login.html';
+    }
 }
 
 // ===== МОДАЛЬНЫЕ ОКНА =====
@@ -31,13 +30,43 @@ function closeModal(modalId) {
 }
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
-window.addEventListener('DOMContentLoaded', function() {
-    checkAuth();
-    loadData();
+window.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 Инициализация moderator.js');
+    
+    try {
+        // Ждем инициализации Firebase
+        await waitForFirebase();
+        
+        // Проверяем авторизацию
+        await checkAuth();
+        
+        // Загружаем данные
+        await loadData();
+        
+        console.log('✅ moderator.js полностью инициализирован');
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации moderator.js:', error);
+        showNotification('Ошибка загрузки панели модератора', 'error');
+    }
 });
 
-window.logout = logout;
-window.closeModal = closeModal;
+// ===== ОЖИДАНИЕ FIREBASE =====
+async function waitForFirebase() {
+    let attempts = 0;
+    const maxAttempts = 50;
+    
+    while (!window.firebase && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    
+    if (!window.firebase) {
+        throw new Error('Firebase не загружен');
+    }
+    
+    console.log('🔥 Firebase готов для moderator.js');
+}
 
 window.addEventListener('click', function(event) {
     if (event.target.classList.contains('modal')) {
@@ -45,7 +74,7 @@ window.addEventListener('click', function(event) {
     }
 });
 
-function checkAuth() {
+async function checkAuth() {
     const savedUser = localStorage.getItem('currentUser');
     if (!savedUser) {
         window.location.href = 'login.html';
@@ -64,8 +93,17 @@ function checkAuth() {
 
 function updateUserInfo() {
     if (!currentUser) return;
-    document.getElementById('user-balance').textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
-    document.getElementById('username').textContent = currentUser.username;
+    
+    const balanceElement = document.getElementById('user-balance');
+    const usernameElement = document.getElementById('username');
+    
+    if (balanceElement) {
+        balanceElement.textContent = `${currentUser.balance.toLocaleString()} лупанчиков`;
+    }
+    
+    if (usernameElement) {
+        usernameElement.textContent = currentUser.username;
+    }
 }
 
 // ===== ЗАГРУЗКА ДАННЫХ =====
@@ -87,8 +125,8 @@ function switchTab(tabName) {
 // ===== СОБЫТИЯ =====
 async function loadEvents() {
     try {
-        const eventsRef = dbRef(database, 'events');
-        const snapshot = await dbGet(eventsRef);
+        const eventsRef = window.firebase.database().ref('events');
+        const snapshot = await eventsRef.once('value');
         if (snapshot.exists()) {
             events = snapshot.val();
             displayEvents();
@@ -142,9 +180,9 @@ async function addEvent() {
 
     try {
         const newEvent = { title, description, category, options, coefficients, status: 'active', createdAt: Date.now() };
-        const eventsRef = dbRef(database, 'events');
-        const newEventRef = dbPush(eventsRef);
-        await dbSet(newEventRef, newEvent);
+        const eventsRef = window.firebase.database().ref('events');
+        const newEventRef = eventsRef.push();
+        await newEventRef.set(newEvent);
 
         document.getElementById('eventTitle').value = '';
         document.getElementById('eventDescription').value = '';
@@ -176,8 +214,8 @@ async function editEvent(eventId) {
 async function deleteEvent(eventId) {
     if (!confirm('Вы уверены, что хотите удалить это событие?')) return;
     try {
-        const eventRef = dbRef(database, `events/${eventId}`);
-        await dbRemove(eventRef);
+        const eventRef = window.firebase.database().ref(`events/${eventId}`);
+        await eventRef.remove();
         showNotification('Событие удалено!', 'success');
         loadEvents();
     } catch (error) {
@@ -186,7 +224,7 @@ async function deleteEvent(eventId) {
     }
 }
 
-window.openFinishEventModal = function(eventId) {
+function openFinishEventModal(eventId) {
     const event = events[eventId];
     if (!event) return;
     document.getElementById('finishEventTitle').textContent = event.title;
@@ -194,34 +232,41 @@ window.openFinishEventModal = function(eventId) {
     select.innerHTML = event.options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
     select.dataset.eventId = eventId;
     document.getElementById('finishEventModal').style.display = 'block';
-};
+}
 
-window.finishEventConfirm = async function() {
+async function finishEventConfirm() {
     const select = document.getElementById('finishEventOption');
     const eventId = select.dataset.eventId;
     const winningOption = select.value;
     if (!eventId || !winningOption) return;
+    
     try {
-        const eventRef = dbRef(database, `events/${eventId}`);
-        await dbUpdate(eventRef, { status: 'finished', winningOption });
+        // 1. Обновить событие: статус и winningOption
+        const eventRef = window.firebase.database().ref(`events/${eventId}`);
+        await eventRef.update({ status: 'finished', winningOption });
+        
+        // 2. Рассчитать все ставки по этому событию
         let updated = 0;
         for (const [betId, bet] of Object.entries(bets)) {
             if (bet.status !== 'pending') continue;
+            // Есть ли это событие в ставке?
             const betEvent = (bet.events || []).find(e => e.eventId === eventId);
             if (!betEvent) continue;
-            const isWin = betEvent.option === winningOption;
-            const updateData = { status: isWin ? 'won' : 'lost' };
+            let isWin = betEvent.option === winningOption;
+            let updateData = { status: isWin ? 'won' : 'lost' };
             if (isWin) {
                 updateData.winAmount = bet.amount * bet.coefficient;
-                const userRef = dbRef(database, `users/${bet.user}`);
-                const userSnapshot = await dbGet(userRef);
+                // Обновить баланс пользователя
+                const userRef = window.firebase.database().ref(`users/${bet.user}`);
+                const userSnapshot = await userRef.once('value');
                 if (userSnapshot.exists()) {
                     const userData = userSnapshot.val();
-                    await dbUpdate(userRef, { balance: userData.balance + updateData.winAmount });
+                    const newBalance = userData.balance + updateData.winAmount;
+                    await userRef.update({ balance: newBalance });
                 }
             }
-            const betRef = dbRef(database, `bets/${betId}`);
-            await dbUpdate(betRef, updateData);
+            const betRef = window.firebase.database().ref(`bets/${betId}`);
+            await betRef.update(updateData);
             updated++;
         }
         closeModal('finishEventModal');
@@ -232,13 +277,13 @@ window.finishEventConfirm = async function() {
         console.error('Ошибка завершения события:', error);
         showNotification('Ошибка завершения события', 'error');
     }
-};
+}
 
 // ===== СТАВКИ =====
 async function loadBets() {
     try {
-        const betsRef = dbRef(database, 'bets');
-        const snapshot = await dbGet(betsRef);
+        const betsRef = window.firebase.database().ref('bets');
+        const snapshot = await betsRef.once('value');
         if (snapshot.exists()) {
             bets = snapshot.val();
             displayBets();
@@ -251,10 +296,12 @@ async function loadBets() {
 function displayBets() {
     const tbody = document.getElementById('betsTableBody');
     if (!tbody) return;
-    const filtered = filterBets();
-    tbody.innerHTML = filtered.map(([betId, bet]) => `
+    
+    const filteredBets = filterBets();
+    
+    tbody.innerHTML = filteredBets.map(([betId, bet]) => `
         <tr>
-            <td>${betId.substring(0,8)}</td>
+            <td>${betId.substring(0, 8)}</td>
             <td>${bet.user}</td>
             <td>${bet.type === 'single' ? 'Одиночная' : 'Экспресс'}</td>
             <td>${bet.amount}</td>
@@ -262,7 +309,9 @@ function displayBets() {
             <td>${(bet.amount * bet.coefficient).toFixed(2)}</td>
             <td><span class="status-${bet.status}">${getBetStatusName(bet.status)}</span></td>
             <td>${new Date(bet.timestamp).toLocaleDateString()}</td>
-            <td><button class="btn" onclick="viewBet('${betId}')">Просмотр</button></td>
+            <td>
+                <button class="btn" onclick="viewBet('${betId}')">Просмотр</button>
+            </td>
         </tr>
     `).join('');
 }
@@ -271,6 +320,7 @@ function filterBets() {
     const statusFilter = document.getElementById('betStatusFilter')?.value || 'all';
     const typeFilter = document.getElementById('betTypeFilter')?.value || 'all';
     const userFilter = document.getElementById('betUserFilter')?.value || '';
+    
     return Object.entries(bets).filter(([betId, bet]) => {
         if (statusFilter !== 'all' && bet.status !== statusFilter) return false;
         if (typeFilter !== 'all' && bet.type !== typeFilter) return false;
@@ -285,8 +335,11 @@ async function viewBet(betId) {
         showNotification('Ставка не найдена', 'error');
         return;
     }
+    
     const potentialWin = (bet.amount * bet.coefficient).toFixed(2);
-    const actualWin = bet.status === 'won' ? (bet.winAmount || bet.amount * bet.coefficient).toFixed(2) : 0;
+    const actualWin = bet.status === 'won' ? 
+        (bet.winAmount || bet.amount * bet.coefficient).toFixed(2) : 0;
+    
     const betDetails = document.getElementById('betDetails');
     betDetails.innerHTML = `
         <div style="margin-bottom: 15px;">
@@ -299,22 +352,30 @@ async function viewBet(betId) {
             <strong>Статус:</strong> ${getBetStatusName(bet.status)}<br>
             <strong>Дата:</strong> ${new Date(bet.timestamp).toLocaleString()}
         </div>
+        
         <div style="margin-bottom: 15px;">
             <strong>События:</strong><br>
-            ${bet.events.map(ev => `<div style="margin:5px 0; padding:5px; background: rgba(255,255,255,0.1); border-radius:4px;">${ev.eventTitle} - ${ev.option} (${ev.coefficient})</div>`).join('')}
+            ${bet.events.map(event => `
+                <div style="margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 4px;">
+                    ${event.eventTitle} - ${event.option} (${event.coefficient})
+                </div>
+            `).join('')}
         </div>
-        ${bet.status === 'won' ? `<div style="color:#4caf50;"><strong>Фактический выигрыш:</strong> ${actualWin} лупанчиков</div>` : ''}
-        ${bet.status === 'lost' ? `<div style="color:#f44336;"><strong>Проигрыш:</strong> ${bet.amount} лупанчиков</div>` : ''}
+        
+        ${bet.status === 'won' ? `<div style="color: #4caf50;"><strong>Фактический выигрыш:</strong> ${actualWin} лупанчиков</div>` : ''}
+        ${bet.status === 'lost' ? `<div style="color: #f44336;"><strong>Проигрыш:</strong> ${bet.amount} лупанчиков</div>` : ''}
     `;
-    document.getElementById('viewBetModal').style.display = 'block';
+    
+    const modal = document.getElementById('viewBetModal');
+    if (modal) modal.style.display = 'block';
 }
 
 function getBetStatusName(status) {
     const statuses = {
-        pending: 'Ожидает',
-        won: 'Выиграла',
-        lost: 'Проиграла',
-        cancelled: 'Отменена'
+        'pending': 'Ожидает',
+        'won': 'Выиграла',
+        'lost': 'Проиграла',
+        'cancelled': 'Отменена'
     };
     return statuses[status] || status;
 }
@@ -323,13 +384,42 @@ function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;
+    
+    // Стили для уведомления
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+        word-wrap: break-word;
+    `;
+    
+    // Цвета по типам
+    const colors = {
+        success: '#4caf50',
+        error: '#f44336',
+        warning: '#ff9800',
+        info: '#2196f3'
+    };
+    
+    notification.style.backgroundColor = colors[type] || colors.info;
+    
     document.body.appendChild(notification);
+    
     setTimeout(() => {
         notification.style.animation = 'slideIn 0.3s ease reverse';
         setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
 
+// ===== ЭКСПОРТ ВСЕХ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ ВИДИМОСТИ =====
 window.switchTab = switchTab;
 window.addEvent = addEvent;
 window.editEvent = editEvent;
@@ -338,3 +428,7 @@ window.loadEvents = loadEvents;
 window.loadBets = loadBets;
 window.filterBets = filterBets;
 window.viewBet = viewBet;
+window.closeModal = closeModal;
+window.logout = logout;
+window.openFinishEventModal = openFinishEventModal;
+window.finishEventConfirm = finishEventConfirm;
