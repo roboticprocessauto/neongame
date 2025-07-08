@@ -1,4 +1,4 @@
-// ===== MAIN.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ (ИСПРАВЛЕННАЯ ВЕРСИЯ) =====
+// ===== MAIN.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
 
 // Используем совместимую версию Firebase
 let database = null;
@@ -18,7 +18,7 @@ function initializeFirebase() {
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
-let events = {};
+window.events = {};
 let betSlip = [];
 let settings = {
     maxBetAmount: 1000,
@@ -48,9 +48,9 @@ window.addEventListener('DOMContentLoaded', async function() {
         
         // Загружаем данные
         await loadSettings();
-        await loadEvents(); // ВАЖНО: загружаем события ДО настройки слушателей
+        await loadEvents();
         
-        // Настраиваем слушатели событий синхронизации ПОСЛЕ загрузки данных
+        // Настраиваем слушатели событий синхронизации
         setupSyncEventListeners();
         
         // Обновляем интерфейс
@@ -200,12 +200,9 @@ async function checkAuthFallback() {
     }
 }
 
-// ===== НАСТРОЙКА СЛУШАТЕЛЕЙ СИНХРОНИЗАЦИИ (ИСПРАВЛЕНО) =====
+// ===== НАСТРОЙКА СЛУШАТЕЛЕЙ СИНХРОНИЗАЦИИ =====
 function setupSyncEventListeners() {
-    if (!window.dataSyncManager) {
-        console.warn('⚠️ DataSyncManager недоступен, слушатели синхронизации не настроены');
-        return;
-    }
+    if (!window.dataSyncManager) return;
     
     console.log('🎧 Настройка слушателей событий синхронизации');
     
@@ -243,8 +240,6 @@ function setupSyncEventListeners() {
     
     // Добавить индикатор синхронизации в интерфейс
     addSyncStatusIndicator();
-    
-    console.log('✅ Слушатели синхронизации настроены');
 }
 
 // ===== ОБРАБОТЧИКИ СОБЫТИЙ СИНХРОНИЗАЦИИ =====
@@ -283,13 +278,10 @@ function handleOfflineUserUpdate(data) {
     }
 }
 
-// ===== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК СОБЫТИЙ =====
 function handleEventsUpdate(data) {
-    console.log('📅 Получены обновленные события через синхронизацию:', data);
-    events = data || {};
-    console.log('📅 События обновлены, количество:', Object.keys(events).length);
+    window.events = data;
     displayEvents();
-    console.log('✅ События отображены в интерфейсе');
+    console.log('📅 События обновлены в реальном времени');
 }
 
 function handleSettingsUpdate(data) {
@@ -300,8 +292,6 @@ function handleSettingsUpdate(data) {
 function handleConnectionRestored() {
     showNotification('Соединение восстановлено! Синхронизация данных...', 'success');
     updateSyncStatus(true);
-    // Принудительно перезагрузить события
-    loadEvents();
 }
 
 function handleConnectionLost() {
@@ -470,7 +460,6 @@ function showNotification(message, type = 'info') {
 // ===== ЗАГРУЗКА НАСТРОЕК =====
 async function loadSettings() {
     try {
-        console.log('⚙️ Загрузка настроек...');
         const settingsRef = database.ref('settings');
         const snapshot = await settingsRef.once('value');
         
@@ -478,45 +467,35 @@ async function loadSettings() {
             Object.assign(settings, snapshot.val());
         }
         
-        console.log('✅ Настройки загружены:', settings);
+        console.log('⚙️ Настройки загружены:', settings);
     } catch (error) {
         console.error('❌ Ошибка загрузки настроек:', error);
     }
 }
 
-// ===== ИСПРАВЛЕННАЯ ЗАГРУЗКА СОБЫТИЙ =====
+// ===== ЗАГРУЗКА СОБЫТИЙ =====
 async function loadEvents() {
     try {
         console.log('📅 Загрузка событий...');
         console.log('database в loadEvents:', database);
         console.log('database === window.firebase.database():', database === window.firebase.database());
-        
-        if (!database) {
-            throw new Error('Database не инициализирована');
-        }
-        
         const eventsRef = database.ref('events');
         console.log('eventsRef:', eventsRef);
-        
         const snapshot = await eventsRef.once('value');
         console.log('SNAPSHOT:', snapshot);
         console.log('snapshot.exists():', snapshot.exists(), 'snapshot.val():', snapshot.val());
-        
         if (snapshot.exists()) {
-            events = snapshot.val();
-            console.log('📅 События загружены из Firebase:', Object.keys(events).length);
+            window.events = snapshot.val();
+            console.log('📅 События загружены из Firebase:', Object.keys(window.events).length);
         } else {
-            events = {};
-            console.log('📅 События не найдены в Firebase, создан пустой объект');
+            window.events = {};
+            console.log('📅 События не найдены');
         }
-        
-        console.log('📅 Финальный объект events:', events);
+        console.log('📅 Финальный объект events:', window.events);
         displayEvents();
-        console.log('✅ События отображены');
     } catch (error) {
         console.error('❌ Ошибка загрузки событий:', error);
         showNotification('Ошибка загрузки событий: ' + error.message, 'error');
-        
         // Показать заглушку
         const container = document.getElementById('events-container');
         if (container) {
@@ -528,91 +507,6 @@ async function loadEvents() {
             `;
         }
     }
-}
-
-// ===== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТОБРАЖЕНИЯ СОБЫТИЙ =====
-function displayEvents(filter = 'all') {
-    const container = document.getElementById('events-container');
-    if (!container) {
-        console.warn('container #events-container не найден');
-        return;
-    }
-    
-    console.log('displayEvents вызван, filter:', filter);
-    console.log('events:', events);
-    console.log('typeof events:', typeof events);
-    console.log('Object.keys(events):', Object.keys(events));
-    
-    container.innerHTML = '';
-    
-    if (!events || typeof events !== 'object') {
-        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий (events не объект)</p></div>';
-        console.warn('events не объект:', events);
-        return;
-    }
-    
-    const allEvents = Object.entries(events);
-    console.log('allEvents:', allEvents);
-    
-    const filteredEvents = allEvents.filter(([id, event]) => {
-        const isActive = event.status === 'active';
-        const categoryMatch = filter === 'all' || event.category === filter;
-        
-        if (!isActive) console.log('Событие не активно:', id, event);
-        if (!categoryMatch) console.log('Событие не подходит по категории:', id, event.category, 'нужна:', filter);
-        
-        return isActive && categoryMatch;
-    });
-    
-    console.log('filteredEvents:', filteredEvents);
-    
-    if (filteredEvents.length === 0) {
-        const message = filter === 'all' 
-            ? 'Нет активных событий' 
-            : `Нет активных событий в категории "${getCategoryName(filter)}"`;
-        container.innerHTML = `<div class="bet-slip-empty"><p>${message}</p></div>`;
-        return;
-    }
-    
-    filteredEvents.forEach(([eventId, event]) => {
-        console.log('Отрисовываем событие:', eventId, event);
-        const eventElement = document.createElement('div');
-        eventElement.className = 'event-card';
-        eventElement.innerHTML = `
-            <div class="event-header">
-                <div>
-                    <div class="event-title">${event.title}</div>
-                </div>
-                <div class="event-category">${getCategoryName(event.category)}</div>
-            </div>
-            <div class="event-description">${event.description}</div>
-            <div class="event-options">
-                ${(event.options && event.coefficients && event.options.length === event.coefficients.length) ?
-                    event.options.map((option, index) => `
-                        <button class="option-btn" onclick="selectOption('${eventId}', '${option}', ${event.coefficients[index]})">
-                            <span class="option-text">${option}</span>
-                            <span class="option-coefficient">${event.coefficients[index]}</span>
-                        </button>
-                    `).join('') : '<span style="color:red">Некорректные опции/коэффициенты</span>'}
-            </div>
-        `;
-        container.appendChild(eventElement);
-    });
-    
-    console.log(`📊 Отображено ${filteredEvents.length} событий`);
-}
-
-// ===== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ =====
-function getCategoryName(category) {
-    const categories = {
-        politics: '🏛️ Политика',
-        entertainment: '🎭 Развлечения',
-        technology: '💻 Технологии',
-        economics: '💰 Экономика',
-        weather: '🌤️ Погода',
-        society: '👥 Общество'
-    };
-    return categories[category] || category;
 }
 
 // ===== ФИЛЬТРАЦИЯ СОБЫТИЙ =====
@@ -629,7 +523,7 @@ function selectOption(eventId, option, coefficient) {
         return;
     }
 
-    const event = events[eventId];
+    const event = window.events[eventId];
     if (!event) return;
 
     const existingIndex = betSlip.findIndex(item => item.eventId === eventId);
@@ -800,8 +694,8 @@ async function placeBet(type) {
             await window.dataSyncManager.updateUserData({ balance: newBalance });
         } else {
             // Fallback: обновить напрямую
-            const userRef = database.ref(`users/${currentUser.username}`);
-            await userRef.update({ balance: newBalance });
+                    const userRef = database.ref(`users/${currentUser.username}`);
+        await userRef.update({ balance: newBalance });
             
             currentUser.balance = newBalance;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -930,8 +824,8 @@ async function claimDailyBonus() {
             await window.dataSyncManager.updateUserData(updateData);
         } else {
             // Fallback: обновить напрямую
-            const userRef = database.ref(`users/${currentUser.username}`);
-            await userRef.update(updateData);
+                    const userRef = database.ref(`users/${currentUser.username}`);
+        await userRef.update(updateData);
             
             Object.assign(currentUser, updateData);
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -1001,3 +895,57 @@ window.addEventListener('unhandledrejection', function(event) {
     console.error('🚨 Необработанная Promise ошибка:', event.reason);
     event.preventDefault();
 });
+
+function displayEvents(filter = 'all') {
+    const events = window.events;
+    const container = document.getElementById('events-container');
+    if (!container) {
+        console.warn('container #events-container не найден');
+        return;
+    }
+    container.innerHTML = '';
+    console.log('displayEvents вызван, filter:', filter);
+    console.log('events:', events);
+    if (!events || typeof events !== 'object') {
+        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий (events не объект)</p></div>';
+        console.warn('events не объект:', events);
+        return;
+    }
+    const filteredEvents = Object.entries(events).filter(([id, event]) => {
+        const isActive = event.status === 'active';
+        const categoryMatch = filter === 'all' || event.category === filter;
+        if (!isActive) console.log('Событие не активно:', id, event);
+        if (!categoryMatch) console.log('Событие не подходит по категории:', id, event);
+        return isActive && categoryMatch;
+    });
+    console.log('filteredEvents:', filteredEvents);
+    if (filteredEvents.length === 0) {
+        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий</p></div>';
+        return;
+    }
+    filteredEvents.forEach(([eventId, event]) => {
+        console.log('Отрисовываем событие:', eventId, event);
+        const eventElement = document.createElement('div');
+        eventElement.className = 'event-card';
+        eventElement.innerHTML = `
+            <div class="event-header">
+                <div>
+                    <div class="event-title">${event.title}</div>
+                </div>
+                <div class="event-category">${getCategoryName(event.category)}</div>
+            </div>
+            <div class="event-description">${event.description}</div>
+            <div class="event-options">
+                ${(event.options && event.coefficients && event.options.length === event.coefficients.length) ?
+                    event.options.map((option, index) => `
+                        <button class="option-btn" onclick="selectOption('${eventId}', '${option}', ${event.coefficients[index]})">
+                            <span class="option-text">${option}</span>
+                            <span class="option-coefficient">${event.coefficients[index]}</span>
+                        </button>
+                    `).join('') : '<span style="color:red">Некорректные опции/коэффициенты</span>'}
+            </div>
+        `;
+        container.appendChild(eventElement);
+    });
+    console.log(`📊 Отображено ${filteredEvents.length} событий`);
+}
