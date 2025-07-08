@@ -545,36 +545,7 @@ window.addEventListener('error', function(event) {
     }
 });
 
-// ===== ГЛОБАЛЬНЫЕ CSS АНИМАЦИИ =====
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    @keyframes pulse {
-        0%, 80%, 100% {
-            transform: scale(0);
-            opacity: 0.5;
-        }
-        40% {
-            transform: scale(1);
-            opacity: 1;
-        }
-    }
-    
-    .notification {
-        animation: slideIn 0.3s ease;
-    }
-`;
-document.head.appendChild(style);
+
 
 // ===== ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ =====
 window.showRegisterForm = showRegisterForm;
