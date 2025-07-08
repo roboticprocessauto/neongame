@@ -8,10 +8,12 @@ function initializeFirebase() {
     if (!window.firebase) {
         throw new Error('Firebase не загружен');
     }
-    
-    const app = window.firebase.initializeApp(window.firebaseConfig);
+    if (!window.firebase.apps.length) {
+        window.firebase.initializeApp(window.firebaseConfig);
+    }
     database = window.firebase.database();
     console.log('🔥 Firebase инициализирован в main.js');
+    console.log('🔥 database в main.js:', database);
 }
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
@@ -475,6 +477,7 @@ async function loadEvents() {
         console.log('📅 Загрузка событий...');
         const eventsRef = database.ref('events');
         const snapshot = await eventsRef.once('value');
+        console.log('snapshot.exists():', snapshot.exists(), 'snapshot.val():', snapshot.val());
         if (snapshot.exists()) {
             events = snapshot.val();
             console.log('📅 События загружены:', Object.keys(events).length);
