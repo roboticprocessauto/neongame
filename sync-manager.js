@@ -631,11 +631,23 @@ class DataSyncManager {
 let dataSyncManager = null;
 
 // Инициализировать при загрузке
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     if (!dataSyncManager) {
         dataSyncManager = new DataSyncManager();
         window.dataSyncManager = dataSyncManager;
         console.log('🚀 DataSyncManager создан и готов к работе');
+        
+        // Автоматически инициализировать пользователя, если он уже авторизован
+        try {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                const userData = JSON.parse(savedUser);
+                console.log(`🔄 Автоматическая инициализация пользователя: ${userData.username}`);
+                await dataSyncManager.initializeUser(userData.username);
+            }
+        } catch (error) {
+            console.error('❌ Ошибка автоматической инициализации пользователя:', error);
+        }
     }
 });
 
