@@ -848,6 +848,19 @@ async function claimDailyBonus() {
     }
 }
 
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+function getCategoryName(category) {
+    const categories = {
+        'politics': '🏛️ Политика',
+        'entertainment': '🎭 Развлечения',
+        'technology': '💻 Технологии',
+        'economics': '💰 Экономика',
+        'weather': '🌤️ Погода',
+        'society': '👥 Общество'
+    };
+    return categories[category] || category;
+}
+
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
 function logout() {
     try {
@@ -869,19 +882,6 @@ function logout() {
     }
 }
 
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-function getCategoryName(category) {
-    const categories = {
-        'politics': '🏛️ Политика',
-        'entertainment': '🎭 Развлечения',
-        'technology': '💻 Технологии',
-        'economics': '💰 Экономика',
-        'weather': '🌤️ Погода',
-        'society': '👥 Общество'
-    };
-    return categories[category] || category;
-}
-
 // ===== ЭКСПОРТ ФУНКЦИЙ =====
 window.filterEvents = filterEvents;
 window.selectOption = selectOption;
@@ -894,6 +894,7 @@ window.openDailyBonusModal = openDailyBonusModal;
 window.closeDailyBonusModal = closeDailyBonusModal;
 window.loadEvents = loadEvents;
 window.getCategoryName = getCategoryName;
+window.displayEvents = displayEvents;
 
 // Глобальная функция для тестирования синхронизации
 window.testSync = function() {
