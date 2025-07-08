@@ -33,10 +33,12 @@ const dailyRewards = [250, 500, 1000, 2000, 3000, 5000, 7000];
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 Инициализация main.js');
-    
+    console.log('DOMContentLoaded, database:', database);
     try {
         // Инициализируем Firebase
         initializeFirebase();
+        console.log('После initializeFirebase, database:', database);
+        console.log('database === window.firebase.database():', database === window.firebase.database());
         
         // Ждем инициализации sync manager
         await waitForSyncManager();
@@ -475,8 +477,12 @@ async function loadSettings() {
 async function loadEvents() {
     try {
         console.log('📅 Загрузка событий...');
+        console.log('database в loadEvents:', database);
+        console.log('database === window.firebase.database():', database === window.firebase.database());
         const eventsRef = database.ref('events');
+        console.log('eventsRef:', eventsRef);
         const snapshot = await eventsRef.once('value');
+        console.log('SNAPSHOT:', snapshot);
         console.log('snapshot.exists():', snapshot.exists(), 'snapshot.val():', snapshot.val());
         if (snapshot.exists()) {
             events = snapshot.val();
