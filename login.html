@@ -54,59 +54,13 @@
             <button class="btn btn-secondary" onclick="showLoginForm()">Назад к входу</button>
         </div>
 
-        <!-- Демо аккаунты -->
-        <div class="demo-users">
-            <h4>🎮 Демо аккаунты для тестирования:</h4>
-            <div class="demo-user">
-                <span>admin</span>
-                <span>admin123</span>
-            </div>
-            <div class="demo-user">
-                <span>user1</span>
-                <span>user123</span>
-            </div>
-            <div class="demo-user">
-                <span>moderator1</span>
-                <span>mod123</span>
-            </div>
-        </div>
+
     </div>
 
     <!-- Загрузка скриптов -->
     <script src="firebase-config.js"></script>
-    
-    <!-- Загружаем sync-manager и auth.js последовательно -->
-    <script type="module">
-        console.log('📝 Начало загрузки скриптов для login.html');
-        
-        // Сначала загружаем sync-manager
-        import('./sync-manager.js').then(() => {
-            console.log('✅ Sync Manager загружен в login.html');
-            
-            // Ждем немного для инициализации sync-manager
-            setTimeout(() => {
-                // Затем загружаем auth.js
-                import('./auth.js').then(() => {
-                    console.log('✅ Auth.js загружен в login.html');
-                }).catch(error => {
-                    console.error('❌ Ошибка загрузки auth.js:', error);
-                    // В случае ошибки показываем уведомление
-                    showNotification('Ошибка загрузки системы авторизации: ' + error.message, 'error');
-                });
-            }, 500);
-            
-        }).catch(error => {
-            console.error('❌ Ошибка загрузки sync-manager.js:', error);
-            
-            // Пытаемся загрузить auth.js без sync manager
-            console.log('⚠️ Попытка загрузки auth.js без sync manager');
-            import('./auth.js').then(() => {
-                console.log('⚠️ Auth.js загружен без sync manager');
-            }).catch(authError => {
-                console.error('❌ Критическая ошибка загрузки auth.js:', authError);
-                showNotification('Критическая ошибка загрузки. Перезагрузите страницу.', 'error');
-            });
-        });
+    <script src="sync-manager.js"></script>
+    <script src="auth.js"></script>
         
         // Глобальная функция для показа уведомлений (доступна сразу)
         window.showNotification = function(message, type = 'error') {
@@ -166,15 +120,7 @@
             console.log('🎯 login.html загружен');
             console.log('🔧 Firebase config доступен:', !!window.firebaseConfig);
             
-            // Добавляем отладочную информацию (только в development)
-            if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-                setTimeout(() => {
-                    console.log('🛠️ Отладочные команды:');
-                    console.log('   testFirebaseConnection() - проверить Firebase');
-                    console.log('   showDemoAccounts() - показать демо аккаунты');
-                    console.log('   createTestData() - создать тестовые данные');
-                }, 3000);
-            }
+
         });
         
         // Обработчик ошибок
