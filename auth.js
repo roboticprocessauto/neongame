@@ -1,4 +1,4 @@
-// ===== ОБНОВЛЕННЫЙ auth.js С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
+// ===== ИСПРАВЛЕННЫЙ auth.js С КОРРЕКТНЫМИ ИМПОРТАМИ =====
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
@@ -28,7 +28,7 @@ window.addEventListener('DOMContentLoaded', async function() {
         console.log('✅ auth.js загружен успешно');
     } catch (error) {
         console.error('❌ Ошибка инициализации auth.js:', error);
-        showNotification('Ошибка инициализации системы', 'error');
+        showNotification('Ошибка инициализации системы: ' + error.message, 'error');
     }
 });
 
@@ -70,6 +70,7 @@ async function initializeFirebase() {
         const app = initializeApp(window.firebaseConfig);
         database = getDatabase(app);
         
+        // Присваиваем функции к глобальным переменным для использования
         dbRef = ref;
         dbSet = set;
         dbGet = get;
@@ -160,7 +161,7 @@ async function checkExistingAuth() {
     } catch (error) {
         console.error('❌ Ошибка проверки авторизации:', error);
         clearUserData();
-        showNotification('Ошибка проверки авторизации', 'error');
+        showNotification('Ошибка проверки авторизации: ' + error.message, 'error');
     }
 }
 
@@ -279,6 +280,11 @@ async function attemptLogin() {
     try {
         console.log(`👤 Попытка входа для пользователя: ${username}`);
         
+        // Убедимся что Firebase инициализирован
+        if (!database || !dbRef || !dbGet) {
+            throw new Error('Firebase не инициализирован');
+        }
+        
         const userRef = dbRef(database, `users/${username}`);
         const snapshot = await dbGet(userRef);
         
@@ -379,6 +385,11 @@ async function attemptRegister() {
     
     try {
         console.log(`📝 Попытка регистрации пользователя: ${username}`);
+        
+        // Убедимся что Firebase инициализирован
+        if (!database || !dbRef || !dbGet || !dbSet) {
+            throw new Error('Firebase не инициализирован');
+        }
         
         const userRef = dbRef(database, `users/${username}`);
         const snapshot = await dbGet(userRef);
@@ -506,6 +517,11 @@ function showNotification(message, type = 'error') {
 async function testFirebaseConnection() {
     try {
         console.log('🧪 Тестирование подключения к Firebase...');
+        
+        if (!database || !dbRef || !dbSet) {
+            throw new Error('Firebase не инициализирован');
+        }
+        
         const testRef = dbRef(database, 'test');
         await dbSet(testRef, { timestamp: Date.now(), test: true });
         console.log('✅ Firebase подключение работает');
@@ -544,8 +560,6 @@ window.addEventListener('error', function(event) {
         showNotification('Произошла критическая ошибка. Данные очищены.', 'error');
     }
 });
-
-
 
 // ===== ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ =====
 window.showRegisterForm = showRegisterForm;
