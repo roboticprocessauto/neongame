@@ -1,4 +1,4 @@
-// ===== СИСТЕМА СИНХРОНИЗАЦИИ ДАННЫХ =====
+// ===== УЛУЧШЕННАЯ СИСТЕМА СИНХРОНИЗАЦИИ ДАННЫХ =====
 
 // sync-manager.js - Менеджер синхронизации данных
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -9,28 +9,45 @@ import {
     onValue, 
     off,
     serverTimestamp,
-    update as dbUpdate
+    update as dbUpdate,
+    onDisconnect
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
 class DataSyncManager {
     constructor() {
-        this.app = initializeApp(window.firebaseConfig);
-        this.database = getDatabase(this.app);
+        this.app = null;
+        this.database = null;
         this.currentUser = null;
         this.userRef = null;
         this.listeners = new Map();
         this.syncInterval = null;
         this.isOnline = navigator.onLine;
         this.pendingUpdates = new Map();
+        this.lastSyncTime = 0;
+        this.syncInProgress = false;
         
-        this.setupEventListeners();
+        this.init();
     }
 
-    // ===== ИНИЦИАЛИЗАЦИЯ И ОЧИСТКА =====
+    // ===== ИНИЦИАЛИЗАЦИЯ =====
+    async init() {
+        try {
+            this.app = initializeApp(window.firebaseConfig);
+            this.database = getDatabase(this.app);
+            this.setupEventListeners();
+            this.loadPendingUpdates();
+            console.log('🔄 DataSyncManager инициализирован');
+        } catch (error) {
+            console.error('❌ Ошибка инициализации DataSyncManager:', error);
+        }
+    }
     
+    // ===== ИНИЦИАЛИЗАЦИЯ ПОЛЬЗОВАТЕЛЯ =====
     async initializeUser(username) {
         try {
-            // Очистить предыдущие слушатели
+            console.log(`🔄 Инициализация пользователя: ${username}`);
+            
+            // Очистить предыдущие данные
             this.cleanup();
             
             // Установить ссылку на пользователя
@@ -56,10 +73,16 @@ class DataSyncManager {
             // Настроить real-time слушатели
             this.setupRealtimeListeners();
             
+            // Настроить обработку отключения
+            this.setupDisconnectHandlers();
+            
             // Запустить периодическую синхронизацию
             this.startPeriodicSync();
             
-            console.log('✅ Пользователь инициализирован и синхронизирован');
+            // Синхронизировать отложенные обновления
+            await this.syncPendingUpdates();
+            
+            console.log('✅ Пользователь инициализирован и синхронизирован:', this.currentUser);
             return this.currentUser;
             
         } catch (error) {
@@ -68,57 +91,41 @@ class DataSyncManager {
         }
     }
     
-    cleanup() {
-        // Остановить все слушатели
-        this.listeners.forEach((unsubscribe, key) => {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            }
-        });
-        this.listeners.clear();
-        
-        // Остановить периодическую синхронизацию
-        if (this.syncInterval) {
-            clearInterval(this.syncInterval);
-            this.syncInterval = null;
-        }
-        
-        // Очистить ссылку на пользователя
-        if (this.userRef) {
-            off(this.userRef);
-            this.userRef = null;
-        }
-        
-        console.log('🧹 Очистка синхронизации завершена');
-    }
-
     // ===== REAL-TIME СЛУШАТЕЛИ =====
-    
     setupRealtimeListeners() {
         if (!this.userRef || !this.currentUser) return;
+        
+        console.log('🎧 Настройка real-time слушателей');
         
         // Слушатель изменений пользователя
         const userUnsubscribe = onValue(this.userRef, (snapshot) => {
             if (snapshot.exists()) {
-                const userData = snapshot.val();
-                const oldBalance = this.currentUser.balance;
+                const firebaseData = snapshot.val();
+                const oldUser = { ...this.currentUser };
                 
+                // Обновить данные пользователя
                 this.currentUser = {
                     username: this.currentUser.username,
-                    ...userData,
+                    ...firebaseData,
                     lastSync: Date.now()
                 };
                 
+                // Сохранить в localStorage
                 this.updateLocalStorage();
-                this.notifyDataChange('user', this.currentUser);
                 
-                // Показать уведомление об изменении баланса
-                if (oldBalance !== userData.balance) {
-                    const diff = userData.balance - oldBalance;
-                    this.showBalanceNotification(diff);
-                }
+                // Определить изменения
+                const changes = this.detectUserChanges(oldUser, this.currentUser);
                 
-                console.log('🔄 Данные пользователя обновлены в реальном времени');
+                // Уведомить компоненты об изменениях
+                this.notifyDataChange('user_updated', {
+                    user: this.currentUser,
+                    changes: changes
+                });
+                
+                // Показать уведомления о важных изменениях
+                this.handleUserChangeNotifications(changes);
+                
+                console.log('🔄 Данные пользователя обновлены в реальном времени:', changes);
             }
         }, (error) => {
             console.error('❌ Ошибка слушателя пользователя:', error);
@@ -131,20 +138,66 @@ class DataSyncManager {
         const settingsUnsubscribe = onValue(settingsRef, (snapshot) => {
             if (snapshot.exists()) {
                 const settings = snapshot.val();
-                this.notifyDataChange('settings', settings);
-                console.log('⚙️ Настройки системы обновлены');
+                this.notifyDataChange('settings_updated', settings);
+                console.log('⚙️ Настройки системы обновлены:', settings);
             }
         });
         
         this.listeners.set('settings', settingsUnsubscribe);
+        
+        // Слушатель событий (для real-time обновлений)
+        const eventsRef = dbRef(this.database, 'events');
+        const eventsUnsubscribe = onValue(eventsRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const events = snapshot.val();
+                this.notifyDataChange('events_updated', events);
+                console.log('📅 События обновлены в реальном времени');
+            }
+        });
+        
+        this.listeners.set('events', eventsUnsubscribe);
     }
-
-    // ===== УПРАВЛЕНИЕ ЛОКАЛЬНЫМ ХРАНИЛИЩЕМ =====
     
+    // ===== ОБРАБОТКА ОТКЛЮЧЕНИЯ =====
+    setupDisconnectHandlers() {
+        if (!this.userRef) return;
+        
+        try {
+            // Установить статус "offline" при отключении
+            const presenceRef = dbRef(this.database, `presence/${this.currentUser.username}`);
+            onDisconnect(presenceRef).set({
+                online: false,
+                lastSeen: serverTimestamp()
+            });
+            
+            // Установить статус "online" сейчас
+            dbUpdate(presenceRef, {
+                online: true,
+                lastConnected: serverTimestamp()
+            });
+            
+            console.log('🔌 Обработчики отключения настроены');
+        } catch (error) {
+            console.error('❌ Ошибка настройки обработчиков отключения:', error);
+        }
+    }
+    
+    // ===== УПРАВЛЕНИЕ ЛОКАЛЬНЫМ ХРАНИЛИЩЕМ =====
     updateLocalStorage() {
-        if (this.currentUser) {
-            localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-            localStorage.setItem('lastSyncTime', Date.now().toString());
+        try {
+            if (this.currentUser) {
+                const userData = {
+                    ...this.currentUser,
+                    lastSync: Date.now()
+                };
+                
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+                localStorage.setItem('lastSyncTime', Date.now().toString());
+                
+                console.log('💾 Данные сохранены в localStorage');
+            }
+        } catch (error) {
+            console.error('❌ Ошибка сохранения в localStorage:', error);
         }
     }
     
@@ -157,8 +210,9 @@ class DataSyncManager {
                 const user = JSON.parse(userData);
                 const syncTime = parseInt(lastSync);
                 
-                // Проверить, не устарели ли данные (5 минут)
-                if (Date.now() - syncTime < 300000) {
+                // Проверить, не устарели ли данные (2 минуты)
+                if (Date.now() - syncTime < 120000) {
+                    console.log('📱 Загружены актуальные данные из localStorage');
                     return user;
                 }
             }
@@ -170,67 +224,99 @@ class DataSyncManager {
     }
     
     clearLocalData() {
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('lastSyncTime');
-        this.currentUser = null;
-        console.log('🗑️ Локальные данные очищены');
+        try {
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('lastSyncTime');
+            localStorage.removeItem('pendingUpdates');
+            this.currentUser = null;
+            console.log('🗑️ Локальные данные очищены');
+        } catch (error) {
+            console.error('❌ Ошибка очистки localStorage:', error);
+        }
     }
-
+    
     // ===== ПЕРИОДИЧЕСКАЯ СИНХРОНИЗАЦИЯ =====
-    
     startPeriodicSync() {
-        // Синхронизация каждые 30 секунд
+        // Синхронизация каждые 15 секунд
         this.syncInterval = setInterval(() => {
-            this.forceSyncFromFirebase();
-        }, 30000);
+            this.performPeriodicSync();
+        }, 15000);
         
-        console.log('⏰ Периодическая синхронизация запущена');
+        console.log('⏰ Периодическая синхронизация запущена (каждые 15 сек)');
     }
     
-    async forceSyncFromFirebase() {
-        if (!this.userRef || !this.isOnline) return;
+    async performPeriodicSync() {
+        if (!this.isOnline || this.syncInProgress) return;
+        
+        this.syncInProgress = true;
+        
+        try {
+            // Синхронизировать отложенные обновления
+            await this.syncPendingUpdates();
+            
+            // Проверить актуальность данных пользователя
+            if (this.shouldRefreshUserData()) {
+                await this.refreshUserData();
+            }
+            
+            console.log('🔄 Периодическая синхронизация выполнена');
+            
+        } catch (error) {
+            console.error('❌ Ошибка периодической синхронизации:', error);
+        } finally {
+            this.syncInProgress = false;
+        }
+    }
+    
+    shouldRefreshUserData() {
+        if (!this.currentUser || !this.currentUser.lastSync) return true;
+        
+        // Обновлять данные если они старше 1 минуты
+        return Date.now() - this.currentUser.lastSync > 60000;
+    }
+    
+    async refreshUserData() {
+        if (!this.userRef) return;
         
         try {
             const snapshot = await dbGet(this.userRef);
             
             if (snapshot.exists()) {
-                const userData = snapshot.val();
+                const firebaseData = snapshot.val();
                 const oldUser = { ...this.currentUser };
                 
                 this.currentUser = {
                     username: this.currentUser.username,
-                    ...userData,
+                    ...firebaseData,
                     lastSync: Date.now()
                 };
                 
                 this.updateLocalStorage();
                 
-                // Проверить изменения
-                const changes = this.detectChanges(oldUser, this.currentUser);
+                const changes = this.detectUserChanges(oldUser, this.currentUser);
                 if (changes.length > 0) {
-                    changes.forEach(change => {
-                        this.notifyDataChange('user_change', change);
+                    this.notifyDataChange('user_refreshed', {
+                        user: this.currentUser,
+                        changes: changes
                     });
-                    console.log('🔄 Принудительная синхронизация: данные обновлены');
+                    
+                    console.log('🔄 Данные пользователя обновлены при проверке:', changes);
                 }
-                
-                // Синхронизировать отложенные обновления
-                await this.syncPendingUpdates();
             }
         } catch (error) {
-            console.error('❌ Ошибка принудительной синхронизации:', error);
+            console.error('❌ Ошибка обновления данных пользователя:', error);
         }
     }
-
-    // ===== ОБНОВЛЕНИЕ ДАННЫХ =====
     
-    async updateUserData(updates) {
+    // ===== ОБНОВЛЕНИЕ ДАННЫХ =====
+    async updateUserData(updates, skipLocalUpdate = false) {
         if (!this.userRef || !this.currentUser) {
             throw new Error('Пользователь не инициализирован');
         }
         
         try {
-            // Добавить временную метку
+            console.log('📝 Обновление данных пользователя:', updates);
+            
             const updateData = {
                 ...updates,
                 lastUpdated: serverTimestamp()
@@ -240,15 +326,26 @@ class DataSyncManager {
                 // Обновить в Firebase
                 await dbUpdate(this.userRef, updateData);
                 console.log('✅ Данные обновлены в Firebase');
+                
+                // Обновить локальные данные только если это не пришло от слушателя
+                if (!skipLocalUpdate) {
+                    Object.assign(this.currentUser, updates);
+                    this.updateLocalStorage();
+                }
             } else {
                 // Сохранить для отложенного обновления
                 this.addPendingUpdate(updateData);
                 console.log('📤 Обновление сохранено для отложенной отправки');
+                
+                // Обновить локальные данные немедленно для UI
+                Object.assign(this.currentUser, updates);
+                this.updateLocalStorage();
+                
+                this.notifyDataChange('user_updated_offline', {
+                    user: this.currentUser,
+                    updates: updates
+                });
             }
-            
-            // Обновить локальные данные
-            Object.assign(this.currentUser, updates);
-            this.updateLocalStorage();
             
             return true;
         } catch (error) {
@@ -256,23 +353,48 @@ class DataSyncManager {
             throw error;
         }
     }
-
-    // ===== РАБОТА ОФЛАЙН =====
     
+    // ===== РАБОТА ОФЛАЙН =====
     addPendingUpdate(updateData) {
-        const updateId = Date.now().toString();
+        const updateId = Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9);
         this.pendingUpdates.set(updateId, {
             data: updateData,
             timestamp: Date.now(),
-            retries: 0
+            retries: 0,
+            maxRetries: 3
         });
         
-        // Сохранить в localStorage
-        localStorage.setItem('pendingUpdates', JSON.stringify(Array.from(this.pendingUpdates.entries())));
+        this.savePendingUpdates();
+        console.log(`📤 Добавлено отложенное обновление: ${updateId}`);
+    }
+    
+    savePendingUpdates() {
+        try {
+            const updatesArray = Array.from(this.pendingUpdates.entries());
+            localStorage.setItem('pendingUpdates', JSON.stringify(updatesArray));
+        } catch (error) {
+            console.error('❌ Ошибка сохранения отложенных обновлений:', error);
+        }
+    }
+    
+    loadPendingUpdates() {
+        try {
+            const saved = localStorage.getItem('pendingUpdates');
+            if (saved) {
+                const updatesArray = JSON.parse(saved);
+                this.pendingUpdates = new Map(updatesArray);
+                console.log(`📥 Загружено ${this.pendingUpdates.size} отложенных обновлений`);
+            }
+        } catch (error) {
+            console.error('❌ Ошибка загрузки отложенных обновлений:', error);
+            this.pendingUpdates = new Map();
+        }
     }
     
     async syncPendingUpdates() {
-        if (!this.isOnline || this.pendingUpdates.size === 0) return;
+        if (!this.isOnline || this.pendingUpdates.size === 0 || !this.userRef) return;
+        
+        console.log(`🔄 Синхронизация ${this.pendingUpdates.size} отложенных обновлений`);
         
         const updates = Array.from(this.pendingUpdates.entries());
         
@@ -283,33 +405,41 @@ class DataSyncManager {
                 console.log(`✅ Отложенное обновление ${updateId} синхронизировано`);
             } catch (error) {
                 updateInfo.retries++;
-                if (updateInfo.retries >= 3) {
+                if (updateInfo.retries >= updateInfo.maxRetries) {
                     this.pendingUpdates.delete(updateId);
-                    console.error(`❌ Отложенное обновление ${updateId} отклонено после 3 попыток`);
+                    console.error(`❌ Отложенное обновление ${updateId} отклонено после ${updateInfo.maxRetries} попыток`);
                 } else {
-                    console.warn(`⚠️ Ошибка синхронизации ${updateId}, попытка ${updateInfo.retries}`);
+                    console.warn(`⚠️ Ошибка синхронизации ${updateId}, попытка ${updateInfo.retries}/${updateInfo.maxRetries}`);
                 }
             }
         }
         
-        // Обновить localStorage
-        localStorage.setItem('pendingUpdates', JSON.stringify(Array.from(this.pendingUpdates.entries())));
+        this.savePendingUpdates();
+        
+        if (this.pendingUpdates.size === 0) {
+            console.log('✅ Все отложенные обновления синхронизированы');
+        }
     }
-
-    // ===== ОБРАБОТКА СОБЫТИЙ =====
     
+    // ===== ОБРАБОТКА СОБЫТИЙ =====
     setupEventListeners() {
         // Слушатель изменения сетевого статуса
         window.addEventListener('online', () => {
             this.isOnline = true;
             console.log('🌐 Соединение восстановлено');
-            this.syncPendingUpdates();
-            this.forceSyncFromFirebase();
+            this.notifyDataChange('connection_restored', { online: true });
+            
+            // Синхронизировать отложенные обновления
+            setTimeout(() => {
+                this.syncPendingUpdates();
+                this.refreshUserData();
+            }, 1000);
         });
         
         window.addEventListener('offline', () => {
             this.isOnline = false;
             console.log('📡 Соединение потеряно - переход в офлайн режим');
+            this.notifyDataChange('connection_lost', { online: false });
         });
         
         // Слушатель закрытия страницы
@@ -319,25 +449,36 @@ class DataSyncManager {
         
         // Слушатель изменения видимости страницы
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && this.currentUser) {
+            if (!document.hidden && this.currentUser && this.isOnline) {
                 // Страница стала видимой - принудительная синхронизация
-                this.forceSyncFromFirebase();
+                setTimeout(() => {
+                    this.refreshUserData();
+                }, 500);
+            }
+        });
+        
+        // Слушатель изменения фокуса окна
+        window.addEventListener('focus', () => {
+            if (this.currentUser && this.isOnline) {
+                setTimeout(() => {
+                    this.refreshUserData();
+                }, 500);
             }
         });
     }
-
-    // ===== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =====
     
-    detectChanges(oldData, newData) {
+    // ===== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =====
+    detectUserChanges(oldData, newData) {
         const changes = [];
-        const keys = ['balance', 'betLimit', 'role', 'status'];
+        const importantFields = ['balance', 'betLimit', 'role', 'status'];
         
-        keys.forEach(key => {
-            if (oldData[key] !== newData[key]) {
+        importantFields.forEach(field => {
+            if (oldData[field] !== newData[field]) {
                 changes.push({
-                    field: key,
-                    oldValue: oldData[key],
-                    newValue: newData[key]
+                    field: field,
+                    oldValue: oldData[field],
+                    newValue: newData[field],
+                    timestamp: Date.now()
                 });
             }
         });
@@ -345,32 +486,117 @@ class DataSyncManager {
         return changes;
     }
     
+    handleUserChangeNotifications(changes) {
+        changes.forEach(change => {
+            switch (change.field) {
+                case 'balance':
+                    const diff = change.newValue - change.oldValue;
+                    if (diff !== 0) {
+                        this.showBalanceNotification(diff);
+                    }
+                    break;
+                    
+                case 'role':
+                    this.showNotification(`Ваша роль изменена на: ${this.getRoleName(change.newValue)}`, 'info');
+                    break;
+                    
+                case 'status':
+                    if (change.newValue === 'inactive') {
+                        this.showNotification('Ваш аккаунт был заблокирован', 'error');
+                    } else if (change.newValue === 'active') {
+                        this.showNotification('Ваш аккаунт разблокирован', 'success');
+                    }
+                    break;
+                    
+                case 'betLimit':
+                    this.showNotification(`Лимит ставки изменен на: ${change.newValue} лупанчиков`, 'info');
+                    break;
+            }
+        });
+    }
+    
     showBalanceNotification(diff) {
         const message = diff > 0 
             ? `💰 Ваш баланс увеличился на ${diff} лупанчиков!`
             : `📉 Ваш баланс уменьшился на ${Math.abs(diff)} лупанчиков`;
             
+        this.showNotification(message, diff > 0 ? 'success' : 'warning');
+    }
+    
+    showNotification(message, type = 'info') {
         if (window.showNotification) {
-            window.showNotification(message, diff > 0 ? 'success' : 'warning');
+            window.showNotification(message, type);
+        } else {
+            console.log(`📢 Уведомление (${type}): ${message}`);
         }
     }
     
-    notifyDataChange(type, data) {
-        // Отправить custom event для уведомления компонентов
-        const event = new CustomEvent('dataSync', {
-            detail: { type, data }
-        });
-        window.dispatchEvent(event);
+    getRoleName(role) {
+        const roles = {
+            'admin': 'Администратор',
+            'moderator': 'Модератор',
+            'user': 'Пользователь'
+        };
+        return roles[role] || role;
     }
-
-    // ===== ПУБЛИЧНЫЕ МЕТОДЫ =====
     
+    notifyDataChange(type, data) {
+        try {
+            const event = new CustomEvent('dataSync', {
+                detail: { type, data, timestamp: Date.now() }
+            });
+            window.dispatchEvent(event);
+            console.log(`📡 Событие отправлено: ${type}`);
+        } catch (error) {
+            console.error('❌ Ошибка отправки события:', error);
+        }
+    }
+    
+    // ===== ОЧИСТКА =====
+    cleanup() {
+        console.log('🧹 Начало очистки DataSyncManager...');
+        
+        // Остановить все слушатели
+        this.listeners.forEach((unsubscribe, key) => {
+            try {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            } catch (error) {
+                console.error(`❌ Ошибка отключения слушателя ${key}:`, error);
+            }
+        });
+        this.listeners.clear();
+        
+        // Остановить периодическую синхронизацию
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
+        
+        // Очистить ссылку на пользователя
+        if (this.userRef) {
+            try {
+                off(this.userRef);
+            } catch (error) {
+                console.error('❌ Ошибка отключения userRef:', error);
+            }
+            this.userRef = null;
+        }
+        
+        // Сохранить отложенные обновления перед очисткой
+        this.savePendingUpdates();
+        
+        console.log('✅ Очистка DataSyncManager завершена');
+    }
+    
+    // ===== ПУБЛИЧНЫЕ МЕТОДЫ =====
     getCurrentUser() {
         return this.currentUser;
     }
     
-    async refreshUserData() {
-        return await this.forceSyncFromFirebase();
+    async forceRefresh() {
+        return await this.refreshUserData();
     }
     
     isUserOnline() {
@@ -380,108 +606,27 @@ class DataSyncManager {
     getPendingUpdatesCount() {
         return this.pendingUpdates.size;
     }
+    
+    getSyncStatus() {
+        return {
+            online: this.isOnline,
+            lastSync: this.currentUser?.lastSync || 0,
+            pendingUpdates: this.pendingUpdates.size,
+            syncInProgress: this.syncInProgress
+        };
+    }
 }
 
 // ===== ГЛОБАЛЬНЫЙ ЭКЗЕМПЛЯР =====
-window.dataSyncManager = new DataSyncManager();
+let dataSyncManager = null;
 
-// ===== ОБНОВЛЕННЫЙ main.js С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
-
-// Обновить функцию checkAuth в main.js
-async function checkAuth() {
-    const savedUser = localStorage.getItem('currentUser');
-    if (!savedUser) {
-        window.location.href = 'login.html';
-        return;
-    }
-    
-    try {
-        const userData = JSON.parse(savedUser);
-        
-        // Инициализировать синхронизацию
-        currentUser = await window.dataSyncManager.initializeUser(userData.username);
-        
-        updateUserInfo();
-        updateDailyBonusButton();
-        
-        // Показать админ/модератор ссылки в меню
-        if (currentUser.role === "admin") {
-            document.getElementById("admin-link").style.display = "block";
-        } else if (currentUser.role === "moderator") {
-            document.getElementById("moderator-link").style.display = "block";
-        }
-        
-        // Настроить слушатель изменений данных
-        window.addEventListener('dataSync', (event) => {
-            if (event.detail.type === 'user' || event.detail.type === 'user_change') {
-                currentUser = window.dataSyncManager.getCurrentUser();
-                updateUserInfo();
-                updateDailyBonusButton();
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка проверки авторизации:', error);
-        localStorage.removeItem('currentUser');
-        window.location.href = 'login.html';
-    }
-}
-
-// Обновить функцию обновления баланса
-async function updateUserBalance(newBalance) {
-    try {
-        await window.dataSyncManager.updateUserData({ balance: newBalance });
-        console.log('✅ Баланс обновлен через синхронизацию');
-    } catch (error) {
-        console.error('❌ Ошибка обновления баланса:', error);
-        showNotification('Ошибка синхронизации данных', 'error');
-    }
-}
-
-// Обновить функцию logout
-function logout() {
-    window.dataSyncManager.cleanup();
-    window.dataSyncManager.clearLocalData();
-    window.location.href = 'login.html';
-}
-
-// Добавить индикатор статуса синхронизации в интерфейс
-function addSyncStatusIndicator() {
-    const header = document.querySelector('.header .user-info');
-    if (header) {
-        const syncStatus = document.createElement('div');
-        syncStatus.id = 'sync-status';
-        syncStatus.style.cssText = `
-            display: flex;
-            align-items: center;
-            font-size: 12px;
-            color: #4caf50;
-            margin-left: 10px;
-        `;
-        syncStatus.innerHTML = '🟢 Синхронизировано';
-        header.appendChild(syncStatus);
-        
-        // Обновлять статус на основе событий синхронизации
-        window.addEventListener('dataSync', () => {
-            syncStatus.innerHTML = '🟢 Синхронизировано';
-            syncStatus.style.color = '#4caf50';
-        });
-        
-        window.addEventListener('offline', () => {
-            syncStatus.innerHTML = '🔴 Офлайн';
-            syncStatus.style.color = '#f44336';
-        });
-        
-        window.addEventListener('online', () => {
-            syncStatus.innerHTML = '🟡 Синхронизация...';
-            syncStatus.style.color = '#ff9800';
-        });
-    }
-}
-
-// Вызвать после загрузки DOM
+// Инициализировать при загрузке
 window.addEventListener('DOMContentLoaded', () => {
-    addSyncStatusIndicator();
+    if (!dataSyncManager) {
+        dataSyncManager = new DataSyncManager();
+        window.dataSyncManager = dataSyncManager;
+        console.log('🚀 DataSyncManager создан и готов к работе');
+    }
 });
 
 export { DataSyncManager };
