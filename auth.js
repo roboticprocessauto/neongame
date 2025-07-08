@@ -66,10 +66,10 @@ async function initializeFirebase() {
         database = window.firebase.database();
         
         // Присваиваем функции к глобальным переменным для использования
-        dbRef = window.firebase.database().ref;
-        dbSet = window.firebase.database().ref().set;
-        dbGet = window.firebase.database().ref().once;
-        dbUpdate = window.firebase.database().ref().update;
+        dbRef = (path) => database.ref(path);
+        dbSet = (ref, data) => ref.set(data);
+        dbGet = (ref) => ref.once('value');
+        dbUpdate = (ref, data) => ref.update(data);
         
         console.log('🔥 Firebase инициализирован для auth.js');
     } catch (error) {
@@ -129,8 +129,8 @@ async function checkExistingAuth() {
         console.log(`👤 Найден сохраненный пользователь: ${savedUser.username}`);
         
         // Проверить актуальность данных в Firebase
-        const userRef = window.firebase.database().ref(`users/${savedUser.username}`);
-        const snapshot = await userRef.once('value');
+        const userRef = dbRef(`users/${savedUser.username}`);
+        const snapshot = await dbGet(userRef);
         
         if (!snapshot.exists()) {
             console.log('❌ Пользователь не найден в базе данных');
@@ -297,8 +297,8 @@ async function attemptLogin() {
             throw new Error('Firebase не инициализирован');
         }
         
-        const userRef = window.firebase.database().ref(`users/${username}`);
-        const snapshot = await userRef.once('value');
+        const userRef = dbRef(`users/${username}`);
+        const snapshot = await dbGet(userRef);
         
         if (!snapshot.exists()) {
             console.log(`❌ Пользователь ${username} не найден`);
@@ -403,8 +403,8 @@ async function attemptRegister() {
             throw new Error('Firebase не инициализирован');
         }
         
-        const userRef = window.firebase.database().ref(`users/${username}`);
-        const snapshot = await userRef.once('value');
+        const userRef = dbRef(`users/${username}`);
+        const snapshot = await dbGet(userRef);
         
         if (snapshot.exists()) {
             console.log(`❌ Пользователь ${username} уже существует`);
@@ -534,8 +534,8 @@ async function testFirebaseConnection() {
             throw new Error('Firebase не инициализирован');
         }
         
-        const testRef = window.firebase.database().ref('test');
-        await testRef.set({ timestamp: Date.now(), test: true });
+        const testRef = dbRef('test');
+        await dbSet(testRef, { timestamp: Date.now(), test: true });
         console.log('✅ Firebase подключение работает');
         showNotification('Firebase подключение работает!', 'success');
     } catch (error) {
