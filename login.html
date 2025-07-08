@@ -55,8 +55,32 @@
         </div>
     </div>
 
+    <!-- Загрузка скриптов -->
     <script src="firebase-config.js"></script>
-    <script type="module" src="auth.js"></script>
+    
+    <!-- Сначала загружаем sync-manager -->
+    <script type="module">
+        // Загружаем sync-manager, затем auth.js
+        import('./sync-manager.js').then(() => {
+            console.log('✅ Sync Manager загружен в login.html');
+            
+            // Затем загружаем auth.js
+            import('./auth.js').then(() => {
+                console.log('✅ Auth.js загружен в login.html');
+            }).catch(error => {
+                console.error('❌ Ошибка загрузки auth.js:', error);
+            });
+        }).catch(error => {
+            console.error('❌ Ошибка загрузки sync-manager.js:', error);
+            
+            // Пытаемся загрузить auth.js без sync manager
+            import('./auth.js').then(() => {
+                console.log('⚠️ Auth.js загружен без sync manager');
+            }).catch(authError => {
+                console.error('❌ Критическая ошибка загрузки auth.js:', authError);
+            });
+        });
+    </script>
     
     <script>
         // Дополнительная отладочная информация
@@ -91,6 +115,12 @@
         window.addEventListener('error', function(e) {
             console.error('🚨 JavaScript ошибка:', e.error);
             console.error('📍 Файл:', e.filename, 'Строка:', e.lineno);
+        });
+        
+        // Обработка Promise ошибок
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('🚨 Необработанная Promise ошибка:', e.reason);
+            e.preventDefault();
         });
     </script>
 </body>
