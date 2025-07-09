@@ -34,23 +34,25 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Обновляем UI
         updateUserInfo();
         
+        // Проверяем наличие всех необходимых элементов
+        console.log('🔍 Проверка элементов страницы:');
+        const elements = [
+            'blackjack-game', 'dice-game', 'roulette-game',
+            'player-cards', 'dealer-cards', 'dice-result', 'roulette-result'
+        ];
+        
+        elements.forEach(id => {
+            const element = document.getElementById(id);
+            console.log(`  ${id}:`, element ? '✅ найден' : '❌ не найден');
+        });
+        
         // Показываем первую игру
         showGame('blackjack');
         
-        // Принудительно переопределяем функции в глобальной области
-        window.showGame = showGame;
-        window.startBlackjack = startBlackjack;
-        window.hitCard = hitCard;
-        window.standGame = standGame;
-        window.playDice = playDice;
-        window.selectRouletteBet = selectRouletteBet;
-        window.spinRoulette = spinRoulette;
-        
         console.log('✅ Страница мини-игр инициализирована');
-        console.log('🎮 Все функции переопределены в глобальной области');
         
-        // Проверяем, что функции переопределились
-        console.log('🔍 Проверка функций:');
+        // Проверяем, что функции экспортировались
+        console.log('🔍 Проверка экспорта функций:');
         console.log('  showGame:', typeof window.showGame);
         console.log('  startBlackjack:', typeof window.startBlackjack);
         console.log('  playDice:', typeof window.playDice);
@@ -136,6 +138,7 @@ function updateUserInfo() {
 function showGame(gameType) {
     try {
         console.log(`🎮 Переключение на игру: ${gameType}`);
+        console.log('📍 Функция showGame вызвана из:', new Error().stack);
         
         // Скрываем все игры
         document.querySelectorAll('.game-container').forEach(container => {
@@ -149,8 +152,10 @@ function showGame(gameType) {
         
         // Показываем выбранную игру
         const gameContainer = document.getElementById(`${gameType}-game`);
+        console.log(`🔍 Поиск контейнера: ${gameType}-game`, gameContainer);
         if (gameContainer) {
             gameContainer.classList.add('active');
+            console.log(`✅ Контейнер ${gameType}-game активирован`);
         } else {
             console.error(`❌ Контейнер игры ${gameType}-game не найден`);
         }
@@ -158,8 +163,10 @@ function showGame(gameType) {
         // Активируем соответствующую вкладку
         // Находим кнопку по gameType
         const tabButton = document.querySelector(`[onclick*="${gameType}"]`);
+        console.log(`🔍 Поиск кнопки для: ${gameType}`, tabButton);
         if (tabButton) {
             tabButton.classList.add('active');
+            console.log(`✅ Кнопка для ${gameType} активирована`);
         } else {
             console.warn(`⚠️ Кнопка для игры ${gameType} не найдена`);
         }
@@ -841,8 +848,8 @@ function logout() {
     window.location.href = 'login.html';
 }
 
-// ===== ПЕРЕОПРЕДЕЛЕНИЕ ФУНКЦИЙ В ГЛОБАЛЬНОЙ ОБЛАСТИ =====
-// Переопределяем временные заглушки реальными функциями
+// ===== ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ =====
+// Экспортируем все функции в глобальную область для доступа из HTML
 window.showGame = showGame;
 window.startBlackjack = startBlackjack;
 window.hitCard = hitCard;
@@ -850,9 +857,15 @@ window.standGame = standGame;
 window.playDice = playDice;
 window.selectRouletteBet = selectRouletteBet;
 window.spinRoulette = spinRoulette;
-window.logout = logout;
 
-console.log('🎮 Все функции мини-игр переопределены в глобальной области');
+console.log('🎮 Все функции мини-игр экспортированы в глобальную область');
+
+// Проверяем экспорт
+console.log('🔍 Проверка экспорта:');
+console.log('  showGame:', typeof window.showGame);
+console.log('  startBlackjack:', typeof window.startBlackjack);
+console.log('  playDice:', typeof window.playDice);
+console.log('  selectRouletteBet:', typeof window.selectRouletteBet);
 
 // Автоматически показываем первую игру после загрузки
 document.addEventListener('DOMContentLoaded', () => {
@@ -862,7 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 100);
     
-    // Дополнительная проверка функций через 2 секунды
+    // Финальная проверка функций через 2 секунды
     setTimeout(() => {
         console.log('🔍 Финальная проверка функций:');
         console.log('  window.showGame:', typeof window.showGame);
@@ -872,15 +885,5 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('  window.playDice:', typeof window.playDice);
         console.log('  window.selectRouletteBet:', typeof window.selectRouletteBet);
         console.log('  window.spinRoulette:', typeof window.spinRoulette);
-        
-        // Проверяем, что функции не являются заглушками
-        if (typeof window.startBlackjack === 'function') {
-            const functionString = window.startBlackjack.toString();
-            if (functionString.includes('Временная заглушка')) {
-                console.warn('⚠️ Функция startBlackjack все еще является заглушкой!');
-            } else {
-                console.log('✅ Функция startBlackjack правильно переопределена');
-            }
-        }
     }, 2000);
 }); 
