@@ -1,6 +1,5 @@
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
-let dataSyncManager = null;
 let currentGame = 'blackjack';
 let blackjackGame = null;
 let rouletteBetType = null;
@@ -81,7 +80,6 @@ async function initializeFirebase() {
 async function initializeDataSyncManager() {
     // Проверяем, есть ли уже глобальный экземпляр
     if (window.dataSyncManager) {
-        dataSyncManager = window.dataSyncManager;
         console.log('🔄 Используем существующий DataSyncManager');
         return;
     }
@@ -98,12 +96,11 @@ async function initializeDataSyncManager() {
     }
     
     if (window.dataSyncManager) {
-        dataSyncManager = window.dataSyncManager;
         console.log('🔄 Используем глобальный DataSyncManager');
     } else {
         // Создаем новый экземпляр, если глобальный недоступен
-        dataSyncManager = new DataSyncManager();
-        await dataSyncManager.waitForReady();
+        window.dataSyncManager = new DataSyncManager();
+        await window.dataSyncManager.waitForReady();
         console.log('🔄 Создан новый DataSyncManager');
     }
     
@@ -354,119 +351,113 @@ class BlackjackGame {
         this.updateDisplay(true);
         
         // Определяем результат
-        let message, isWin;
+        let message;
+        let winAmount = 0;
+        let loseAmount = 0;
+        
         switch (result) {
             case 'win':
-                message = `Победа! Вы выиграли ${this.bet * 2} лупанчиков!`;
-                isWin = true;
-                this.updateBalance(this.bet * 2);
+                winAmount = this.bet * 2;
+                message = `Победа! Выигрыш: ${winAmount} лупанчиков!`;
                 break;
             case 'lose':
-                message = `Поражение! Вы проиграли ${this.bet} лупанчиков.`;
-                isWin = false;
-                this.updateBalance(-this.bet);
+                loseAmount = this.bet;
+                message = `Поражение! Проигрыш: ${loseAmount} лупанчиков.`;
                 break;
             case 'bust':
-                message = `Перебор! Вы проиграли ${this.bet} лупанчиков.`;
-                isWin = false;
-                this.updateBalance(-this.bet);
+                loseAmount = this.bet;
+                message = `Перебор! Проигрыш: ${loseAmount} лупанчиков.`;
                 break;
             case 'draw':
-                message = `Ничья! Ваша ставка возвращена.`;
-                isWin = false;
+                message = 'Ничья! Ставка возвращена.';
                 break;
         }
+        
+        // Обновляем баланс
+        this.updateBalance(winAmount - loseAmount);
         
         // Показываем результат
         const resultElement = document.getElementById('blackjack-result');
-        resultElement.textContent = message;
-        resultElement.className = `game-result ${isWin ? 'win' : 'lose'}`;
+        if (resultElement) {
+            resultElement.textContent = message;
+            resultElement.className = `game-result ${result}`;
+        }
         
         // Скрываем кнопки действий
-        document.getElementById('blackjack-actions').style.display = 'none';
+        const actionsElement = document.getElementById('blackjack-actions');
+        if (actionsElement) {
+            actionsElement.style.display = 'none';
+        }
         
-        // Добавляем кнопку новой игры
-        setTimeout(() => {
-            const newGameBtn = document.createElement('button');
-            newGameBtn.className = 'btn';
-            newGameBtn.textContent = 'Новая игра';
-            newGameBtn.onclick = () => {
-                resetGameState();
-                document.getElementById('blackjack-actions').style.display = 'none';
-            };
-            resultElement.appendChild(document.createElement('br'));
-            resultElement.appendChild(newGameBtn);
-        }, 1000);
+        // Показываем уведомление
+        if (result === 'win') {
+            showNotification(`Выигрыш: +${winAmount} лупанчиков!`, 'success');
+        } else if (result === 'lose' || result === 'bust') {
+            showNotification(`Проигрыш: ${loseAmount} лупанчиков`, 'error');
+        } else {
+            showNotification('Ничья!', 'info');
+        }
     }
     
     updateDisplay(showAllDealerCards = false) {
-        // Показываем карты игрока
-        const playerCardsContainer = document.getElementById('player-cards');
-        playerCardsContainer.innerHTML = '';
+        const playerCardsElement = document.getElementById('player-cards');
+        const dealerCardsElement = document.getElementById('dealer-cards');
+        const playerScoreElement = document.getElementById('player-score');
+        const dealerScoreElement = document.getElementById('dealer-score');
         
-        for (let card of this.playerCards) {
-            const cardElement = document.createElement('div');
-            cardElement.className = `card ${['♥', '♦'].includes(card.suit) ? 'red' : ''}`;
-            cardElement.textContent = `${card.value}${card.suit}`;
-            playerCardsContainer.appendChild(cardElement);
+        // Показываем карты игрока
+        if (playerCardsElement) {
+            playerCardsElement.innerHTML = this.playerCards.map(card => 
+                `<div class="card ${['♥', '♦'].includes(card.suit) ? 'red' : ''}">${card.value}${card.suit}</div>`
+            ).join('');
         }
         
         // Показываем карты дилера
-        const dealerCardsContainer = document.getElementById('dealer-cards');
-        dealerCardsContainer.innerHTML = '';
-        
-        for (let i = 0; i < this.dealerCards.length; i++) {
-            const card = this.dealerCards[i];
-            const cardElement = document.createElement('div');
-            cardElement.className = `card ${['♥', '♦'].includes(card.suit) ? 'red' : ''}`;
-            
-            if (i === 1 && !showAllDealerCards && !this.gameOver) {
-                cardElement.textContent = '?';
-                cardElement.style.background = '#333';
-                cardElement.style.color = '#fff';
+        if (dealerCardsElement) {
+            if (showAllDealerCards) {
+                dealerCardsElement.innerHTML = this.dealerCards.map(card => 
+                    `<div class="card ${['♥', '♦'].includes(card.suit) ? 'red' : ''}">${card.value}${card.suit}</div>`
+                ).join('');
             } else {
-                cardElement.textContent = `${card.value}${card.suit}`;
+                dealerCardsElement.innerHTML = 
+                    `<div class="card ${['♥', '♦'].includes(this.dealerCards[0].suit) ? 'red' : ''}">${this.dealerCards[0].value}${this.dealerCards[0].suit}</div>` +
+                    '<div class="card">?</div>';
             }
-            
-            dealerCardsContainer.appendChild(cardElement);
         }
         
-        // Обновляем счет
-        document.getElementById('player-score').textContent = `Очки: ${this.calculateScore(this.playerCards)}`;
+        // Показываем очки
+        if (playerScoreElement) {
+            playerScoreElement.textContent = `Очки: ${this.calculateScore(this.playerCards)}`;
+        }
         
-        if (showAllDealerCards || this.gameOver) {
-            document.getElementById('dealer-score').textContent = `Очки: ${this.calculateScore(this.dealerCards)}`;
-        } else {
-            document.getElementById('dealer-score').textContent = `Очки: ${this.calculateScore([this.dealerCards[0]])}`;
+        if (dealerScoreElement) {
+            if (showAllDealerCards) {
+                dealerScoreElement.textContent = `Очки: ${this.calculateScore(this.dealerCards)}`;
+            } else {
+                dealerScoreElement.textContent = `Очки: ${this.calculateScore([this.dealerCards[0]])}`;
+            }
         }
     }
     
     updateBalance(amount) {
-        if (!currentUser) return;
-        
-        const newBalance = (currentUser.balance || 0) + amount;
-        currentUser.balance = newBalance;
-        
-        // Обновляем в localStorage
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        
-        // Пытаемся обновить через DataSyncManager, если он доступен
-        if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
-            try {
-                dataSyncManager.updateUserBalance(newBalance);
-            } catch (error) {
-                console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+        if (currentUser) {
+            const newBalance = (currentUser.balance || 0) + amount;
+            currentUser.balance = newBalance;
+            
+            // Обновляем в localStorage
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // Пытаемся обновить через DataSyncManager, если он доступен
+            if (window.dataSyncManager && typeof window.dataSyncManager.updateUserBalance === 'function') {
+                try {
+                    window.dataSyncManager.updateUserBalance(newBalance);
+                } catch (error) {
+                    console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+                }
             }
+            
+            updateUserInfo();
         }
-        
-        // Обновляем UI
-        updateUserInfo();
-        
-        // Показываем уведомление
-        const message = amount > 0 ? 
-            `Выигрыш: +${amount} лупанчиков!` : 
-            `Проигрыш: ${amount} лупанчиков`;
-        showNotification(message, amount > 0 ? 'success' : 'error');
     }
 }
 
@@ -591,9 +582,9 @@ function playDice() {
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             
             // Пытаемся обновить через DataSyncManager, если он доступен
-            if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
+            if (window.dataSyncManager && typeof window.dataSyncManager.updateUserBalance === 'function') {
                 try {
-                    dataSyncManager.updateUserBalance(newBalance);
+                    window.dataSyncManager.updateUserBalance(newBalance);
                 } catch (error) {
                     console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
                 }
@@ -791,9 +782,9 @@ function spinRoulette() {
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             
             // Пытаемся обновить через DataSyncManager, если он доступен
-            if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
+            if (window.dataSyncManager && typeof window.dataSyncManager.updateUserBalance === 'function') {
                 try {
-                    dataSyncManager.updateUserBalance(newBalance);
+                    window.dataSyncManager.updateUserBalance(newBalance);
                 } catch (error) {
                     console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
                 }
