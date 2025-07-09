@@ -147,65 +147,37 @@
         // Экспортируем функции сразу, чтобы они были доступны в HTML
         window.showGame = function(gameType) {
             console.log('showGame вызвана с:', gameType);
-            
-            // Простая реализация для тестирования
-            try {
-                // Скрываем все игры
-                document.querySelectorAll('.game-container').forEach(container => {
-                    container.classList.remove('active');
-                });
-                
-                // Убираем активность со всех вкладок
-                document.querySelectorAll('.game-tab').forEach(tab => {
-                    tab.classList.remove('active');
-                });
-                
-                // Показываем выбранную игру
-                const gameContainer = document.getElementById(`${gameType}-game`);
-                if (gameContainer) {
-                    gameContainer.classList.add('active');
-                }
-                
-                // Активируем соответствующую вкладку
-                const tabButton = document.querySelector(`[onclick*="${gameType}"]`);
-                if (tabButton) {
-                    tabButton.classList.add('active');
-                }
-                
-                console.log(`✅ Игра ${gameType} активирована`);
-            } catch (error) {
-                console.error('❌ Ошибка в showGame:', error);
-            }
+            // Временная заглушка, будет переопределена позже
         };
         
         window.startBlackjack = function() {
             console.log('startBlackjack вызвана');
-            alert('Игра 21 очко запущена! (тестовая версия)');
+            // Временная заглушка, будет переопределена позже
         };
         
         window.hitCard = function() {
             console.log('hitCard вызвана');
-            alert('Взята карта! (тестовая версия)');
+            // Временная заглушка, будет переопределена позже
         };
         
         window.standGame = function() {
             console.log('standGame вызвана');
-            alert('Игра завершена! (тестовая версия)');
+            // Временная заглушка, будет переопределена позже
         };
         
         window.playDice = function() {
             console.log('playDice вызвана');
-            alert('Кости брошены! (тестовая версия)');
+            // Временная заглушка, будет переопределена позже
         };
         
         window.selectRouletteBet = function(type) {
             console.log('selectRouletteBet вызвана с:', type);
-            alert(`Выбрана ставка: ${type} (тестовая версия)`);
+            // Временная заглушка, будет переопределена позже
         };
         
         window.spinRoulette = function() {
             console.log('spinRoulette вызвана');
-            alert('Рулетка крутится! (тестовая версия)');
+            // Временная заглушка, будет переопределена позже
         };
         
         window.logout = function() {
