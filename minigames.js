@@ -6,48 +6,6 @@ let blackjackGame = null;
 let rouletteBetType = null;
 let rouletteBetNumber = null;
 
-// ===== ПРЕДВАРИТЕЛЬНЫЙ ЭКСПОРТ ФУНКЦИЙ =====
-// Экспортируем функции сразу, чтобы они были доступны в HTML
-window.showGame = function(gameType) {
-    // Временная заглушка, будет переопределена позже
-    console.log('showGame вызвана с:', gameType);
-};
-
-window.startBlackjack = function() {
-    // Временная заглушка, будет переопределена позже
-    console.log('startBlackjack вызвана');
-};
-
-window.hitCard = function() {
-    // Временная заглушка, будет переопределена позже
-    console.log('hitCard вызвана');
-};
-
-window.standGame = function() {
-    // Временная заглушка, будет переопределена позже
-    console.log('standGame вызвана');
-};
-
-window.playDice = function() {
-    // Временная заглушка, будет переопределена позже
-    console.log('playDice вызвана');
-};
-
-window.selectRouletteBet = function(type) {
-    // Временная заглушка, будет переопределена позже
-    console.log('selectRouletteBet вызвана с:', type);
-};
-
-window.spinRoulette = function() {
-    // Временная заглушка, будет переопределена позже
-    console.log('spinRoulette вызвана');
-};
-
-window.logout = function() {
-    localStorage.removeItem('currentUser');
-    window.location.href = 'login.html';
-};
-
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🎮 Инициализация страницы мини-игр...');
@@ -63,9 +21,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         currentUser = JSON.parse(user);
         console.log('👤 Пользователь загружен:', currentUser.username);
         
-        // Инициализируем Firebase и DataSyncManager
-        await initializeFirebase();
-        await initializeDataSyncManager();
+        // Пытаемся инициализировать Firebase и DataSyncManager
+        try {
+            await initializeFirebase();
+            await initializeDataSyncManager();
+            console.log('✅ Firebase и DataSyncManager инициализированы');
+        } catch (error) {
+            console.warn('⚠️ Ошибка инициализации Firebase/DataSyncManager:', error);
+            console.log('🔄 Продолжаем работу в офлайн режиме');
+        }
         
         // Обновляем UI
         updateUserInfo();
@@ -76,8 +40,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.log('✅ Страница мини-игр инициализирована');
         
     } catch (error) {
-        console.error('❌ Ошибка инициализации:', error);
-        showNotification('Ошибка загрузки данных', 'error');
+        console.error('❌ Критическая ошибка инициализации:', error);
+        // Не показываем уведомление, чтобы не блокировать интерфейс
     }
 });
 
@@ -454,13 +418,22 @@ class BlackjackGame {
     }
     
     updateBalance(amount) {
-        if (!currentUser || !dataSyncManager) return;
+        if (!currentUser) return;
         
         const newBalance = (currentUser.balance || 0) + amount;
         currentUser.balance = newBalance;
         
-        // Обновляем в Firebase
-        dataSyncManager.updateUserBalance(newBalance);
+        // Обновляем в localStorage
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        
+        // Пытаемся обновить через DataSyncManager, если он доступен
+        if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
+            try {
+                dataSyncManager.updateUserBalance(newBalance);
+            } catch (error) {
+                console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+            }
+        }
         
         // Обновляем UI
         updateUserInfo();
@@ -563,10 +536,22 @@ function playDice() {
     const loseAmount = isWin ? 0 : bet;
     
     // Обновляем баланс
-    if (currentUser && dataSyncManager) {
+    if (currentUser) {
         const newBalance = (currentUser.balance || 0) + winAmount - loseAmount;
         currentUser.balance = newBalance;
-        dataSyncManager.updateUserBalance(newBalance);
+        
+        // Обновляем в localStorage
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        
+        // Пытаемся обновить через DataSyncManager, если он доступен
+        if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
+            try {
+                dataSyncManager.updateUserBalance(newBalance);
+            } catch (error) {
+                console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+            }
+        }
+        
         updateUserInfo();
     }
     
@@ -715,10 +700,22 @@ function spinRoulette() {
     const winAmount = isWin ? bet * multiplier : 0;
     const loseAmount = isWin ? 0 : bet;
     
-    if (currentUser && dataSyncManager) {
+    if (currentUser) {
         const newBalance = (currentUser.balance || 0) + winAmount - loseAmount;
         currentUser.balance = newBalance;
-        dataSyncManager.updateUserBalance(newBalance);
+        
+        // Обновляем в localStorage
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        
+        // Пытаемся обновить через DataSyncManager, если он доступен
+        if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
+            try {
+                dataSyncManager.updateUserBalance(newBalance);
+            } catch (error) {
+                console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+            }
+        }
+        
         updateUserInfo();
     }
     
@@ -771,4 +768,13 @@ window.selectRouletteBet = selectRouletteBet;
 window.spinRoulette = spinRoulette;
 window.logout = logout;
 
-console.log('🎮 Все функции мини-игр экспортированы в глобальную область'); 
+console.log('🎮 Все функции мини-игр переопределены в глобальной области');
+
+// Автоматически показываем первую игру после загрузки
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (typeof showGame === 'function') {
+            showGame('blackjack');
+        }
+    }, 100);
+}); 
