@@ -1,0 +1,453 @@
+/* ===== СТИЛИ ДЛЯ МИНИ-ИГР ===== */
+
+/* ===== ОСНОВНОЙ КОНТЕНТ ===== */
+.main-content {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* ===== ВКЛАДКИ ИГР ===== */
+.games-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.game-tab {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #fff;
+    padding: 15px 25px;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    font-weight: bold;
+    min-width: 120px;
+}
+
+.game-tab:hover,
+.game-tab.active {
+    background: linear-gradient(45deg, #4fc3f7, #29b6f6);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(79, 195, 247, 0.4);
+}
+
+/* ===== КОНТЕЙНЕРЫ ИГР ===== */
+.game-container {
+    display: none;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 20px;
+}
+
+.game-container.active {
+    display: block;
+}
+
+.game-container h2 {
+    color: #4fc3f7;
+    margin-bottom: 10px;
+    font-size: 28px;
+    text-align: center;
+}
+
+.game-description {
+    color: #b0bec5;
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 16px;
+}
+
+/* ===== ЭЛЕМЕНТЫ УПРАВЛЕНИЯ ===== */
+.game-controls {
+    margin-bottom: 30px;
+}
+
+.bet-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.bet-controls label {
+    color: #4fc3f7;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.bet-input {
+    padding: 12px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 16px;
+    width: 150px;
+    text-align: center;
+}
+
+.bet-input:focus {
+    outline: none;
+    border-color: #4fc3f7;
+    box-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
+}
+
+.bet-input::placeholder {
+    color: #b0bec5;
+}
+
+/* ===== ИГРОВАЯ ОБЛАСТЬ ===== */
+.game-area {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+}
+
+/* ===== 21 ОЧКО ===== */
+.player-area,
+.dealer-area {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    min-width: 300px;
+    text-align: center;
+}
+
+.player-area h3,
+.dealer-area h3 {
+    color: #4fc3f7;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.cards-container {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+    min-height: 80px;
+}
+
+.card {
+    width: 60px;
+    height: 80px;
+    background: linear-gradient(135deg, #fff, #f0f0f0);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 18px;
+    color: #333;
+    border: 2px solid #ddd;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.card.red {
+    color: #d32f2f;
+}
+
+.score {
+    color: #4caf50;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.game-actions {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.game-result {
+    padding: 15px 25px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 18px;
+    text-align: center;
+    min-width: 200px;
+}
+
+.game-result.win {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4caf50;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.game-result.lose {
+    background: rgba(244, 67, 54, 0.2);
+    color: #f44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.game-result.draw {
+    background: rgba(255, 152, 0, 0.2);
+    color: #ff9800;
+    border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+/* ===== КОСТИ ===== */
+.dice-display {
+    display: flex;
+    justify-content: center;
+    margin: 30px 0;
+}
+
+.dice {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #fff, #f0f0f0);
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    font-weight: bold;
+    color: #333;
+    border: 3px solid #ddd;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    animation: diceRoll 0.5s ease;
+}
+
+@keyframes diceRoll {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+/* ===== РУЛЕТКА ===== */
+.roulette-bet-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin: 15px 0;
+}
+
+.bet-type-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.bet-type-btn:hover,
+.bet-type-btn.selected {
+    background: rgba(79, 195, 247, 0.3);
+    border-color: #4fc3f7;
+    transform: translateY(-2px);
+}
+
+.number-bets {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    margin: 15px 0;
+}
+
+.selected-bet {
+    background: rgba(79, 195, 247, 0.2);
+    color: #4fc3f7;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    margin: 15px 0;
+    text-align: center;
+}
+
+.roulette-wheel {
+    display: flex;
+    justify-content: center;
+    margin: 30px 0;
+}
+
+.roulette-number {
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(135deg, #d32f2f, #b71c1c);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    font-weight: bold;
+    color: #fff;
+    border: 5px solid #fff;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    animation: rouletteSpin 2s ease-out;
+}
+
+.roulette-number.black {
+    background: linear-gradient(135deg, #333, #000);
+}
+
+.roulette-number.green {
+    background: linear-gradient(135deg, #388e3c, #2e7d32);
+}
+
+@keyframes rouletteSpin {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(720deg) scale(1.1); }
+    100% { transform: rotate(1440deg) scale(1); }
+}
+
+/* ===== КНОПКИ ===== */
+.btn {
+    background: linear-gradient(45deg, #4fc3f7, #29b6f6);
+    border: none;
+    color: #fff;
+    padding: 12px 25px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(79, 195, 247, 0.4);
+}
+
+.btn:disabled {
+    background: rgba(255, 255, 255, 0.1);
+    color: #b0bec5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
+}
+
+/* ===== УВЕДОМЛЕНИЯ ===== */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease;
+    max-width: 400px;
+    word-wrap: break-word;
+}
+
+.notification.success { 
+    background: #4caf50; 
+}
+
+.notification.error { 
+    background: #f44336; 
+}
+
+.notification.warning { 
+    background: #ff9800; 
+}
+
+.notification.info { 
+    background: #2196f3; 
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ===== АДАПТИВНОСТЬ ===== */
+@media (max-width: 768px) {
+    .main-content {
+        padding: 15px;
+    }
+    
+    .games-tabs {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .game-tab {
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .game-container {
+        padding: 20px;
+    }
+    
+    .bet-controls {
+        gap: 10px;
+    }
+    
+    .bet-input {
+        width: 120px;
+    }
+    
+    .roulette-bet-types {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .bet-type-btn {
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .player-area,
+    .dealer-area {
+        min-width: 250px;
+    }
+    
+    .cards-container {
+        gap: 5px;
+    }
+    
+    .card {
+        width: 50px;
+        height: 70px;
+        font-size: 14px;
+    }
+    
+    .dice {
+        width: 80px;
+        height: 80px;
+        font-size: 36px;
+    }
+    
+    .roulette-number {
+        width: 100px;
+        height: 100px;
+        font-size: 28px;
+    }
+} 
