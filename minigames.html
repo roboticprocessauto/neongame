@@ -141,6 +141,96 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="sync-manager.js"></script>
+    
+    <!-- Предварительный экспорт функций -->
+    <script>
+        // Экспортируем функции сразу, чтобы они были доступны в HTML
+        window.showGame = function(gameType) {
+            console.log('showGame вызвана с:', gameType);
+            
+            // Простая реализация для тестирования
+            try {
+                // Скрываем все игры
+                document.querySelectorAll('.game-container').forEach(container => {
+                    container.classList.remove('active');
+                });
+                
+                // Убираем активность со всех вкладок
+                document.querySelectorAll('.game-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                
+                // Показываем выбранную игру
+                const gameContainer = document.getElementById(`${gameType}-game`);
+                if (gameContainer) {
+                    gameContainer.classList.add('active');
+                }
+                
+                // Активируем соответствующую вкладку
+                const tabButton = document.querySelector(`[onclick*="${gameType}"]`);
+                if (tabButton) {
+                    tabButton.classList.add('active');
+                }
+                
+                console.log(`✅ Игра ${gameType} активирована`);
+            } catch (error) {
+                console.error('❌ Ошибка в showGame:', error);
+            }
+        };
+        
+        window.startBlackjack = function() {
+            console.log('startBlackjack вызвана');
+            alert('Игра 21 очко запущена! (тестовая версия)');
+        };
+        
+        window.hitCard = function() {
+            console.log('hitCard вызвана');
+            alert('Взята карта! (тестовая версия)');
+        };
+        
+        window.standGame = function() {
+            console.log('standGame вызвана');
+            alert('Игра завершена! (тестовая версия)');
+        };
+        
+        window.playDice = function() {
+            console.log('playDice вызвана');
+            alert('Кости брошены! (тестовая версия)');
+        };
+        
+        window.selectRouletteBet = function(type) {
+            console.log('selectRouletteBet вызвана с:', type);
+            alert(`Выбрана ставка: ${type} (тестовая версия)`);
+        };
+        
+        window.spinRoulette = function() {
+            console.log('spinRoulette вызвана');
+            alert('Рулетка крутится! (тестовая версия)');
+        };
+        
+        window.logout = function() {
+            localStorage.removeItem('currentUser');
+            window.location.href = 'login.html';
+        };
+        
+        console.log('🎮 Функции мини-игр предварительно экспортированы');
+        
+        // Проверяем авторизацию
+        const user = localStorage.getItem('currentUser');
+        if (!user) {
+            window.location.href = 'login.html';
+        } else {
+            try {
+                const userData = JSON.parse(user);
+                document.getElementById('username').textContent = userData.username;
+                document.getElementById('user-balance').textContent = `${userData.balance || 0} лупанчиков`;
+                console.log('👤 Пользователь загружен:', userData.username);
+            } catch (error) {
+                console.error('❌ Ошибка загрузки пользователя:', error);
+            }
+        }
+    </script>
+    
     <script src="minigames.js"></script>
 </body>
 </html> 
