@@ -446,20 +446,38 @@ async function loadSettings() {
 async function loadEvents() {
     try {
         console.log('📅 Загрузка событий...');
+        
+        // Проверяем, что database доступен
+        if (!database) {
+            console.error('❌ database не инициализирован');
+            throw new Error('Database не инициализирован');
+        }
+        
         const eventsRef = database.ref('events');
+        console.log('📅 eventsRef создан:', !!eventsRef);
+        
         const snapshot = await eventsRef.once('value');
+        console.log('📅 snapshot получен, exists:', snapshot.exists());
         
         if (snapshot.exists()) {
             window.events = snapshot.val();
             console.log('📅 События загружены из Firebase:', Object.keys(window.events).length);
+            console.log('📅 window.events после загрузки:', window.events);
         } else {
             window.events = {};
             console.log('📅 События не найдены');
         }
         
-        displayEvents();
+        // Принудительно отображаем события
+        if (typeof displayEvents === 'function') {
+            displayEvents();
+        } else {
+            console.error('❌ displayEvents недоступна');
+        }
+        
     } catch (error) {
         console.error('❌ Ошибка загрузки событий:', error);
+        console.error('📍 Стек ошибки:', error.stack);
         showNotification('Ошибка загрузки событий: ' + error.message, 'error');
         
         // Показать заглушку
@@ -958,6 +976,23 @@ window.displayEvents = displayEvents;
 // ИСПРАВЛЕНИЕ: Убедимся что syncUser экспортируется
 window.syncUser = forceSyncUser;
 window.forceSyncUser = forceSyncUser;
+
+// Функция для принудительной загрузки событий
+window.forceLoadEvents = function() {
+    if (typeof loadEvents === 'function') {
+        console.log('🔄 Принудительная загрузка событий...');
+        return loadEvents().then(() => {
+            console.log('✅ События загружены принудительно');
+            return true;
+        }).catch(error => {
+            console.error('❌ Ошибка принудительной загрузки событий:', error);
+            return false;
+        });
+    } else {
+        console.log('❌ Функция loadEvents недоступна');
+        return Promise.resolve(false);
+    }
+};
 
 // Глобальная функция для тестирования синхронизации
 window.testSync = function() {
