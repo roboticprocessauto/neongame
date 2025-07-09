@@ -35,14 +35,7 @@
     
     <!-- Основной контент -->
     <div class="main-content">
-        <!-- Тестовые кнопки (временно) -->
-        <div style="background: rgba(255,0,0,0.1); padding: 10px; margin-bottom: 20px; border-radius: 10px;">
-            <h4 style="color: #ff4444; margin: 0 0 10px 0;">🧪 Тестовые функции:</h4>
-            <button onclick="testShowGame('blackjack')" style="margin: 5px;">Тест Blackjack</button>
-            <button onclick="testShowGame('dice')" style="margin: 5px;">Тест Dice</button>
-            <button onclick="testShowGame('roulette')" style="margin: 5px;">Тест Roulette</button>
-            <button onclick="testStartBlackjack()" style="margin: 5px;">Тест Start Blackjack</button>
-        </div>
+
         
         <!-- Вкладки игр -->
         <div class="games-tabs">
@@ -174,24 +167,7 @@
             window.location.href = 'login.html';
         };
         
-        // Временные функции для тестирования
-        window.testShowGame = function(gameType) {
-            console.log('🧪 Тест showGame:', gameType);
-            if (typeof window.showGame === 'function') {
-                window.showGame(gameType);
-            } else {
-                console.error('❌ showGame не найдена');
-            }
-        };
-        
-        window.testStartBlackjack = function() {
-            console.log('🧪 Тест startBlackjack');
-            if (typeof window.startBlackjack === 'function') {
-                window.startBlackjack();
-            } else {
-                console.error('❌ startBlackjack не найдена');
-            }
-        };
+
     </script>
     
     <script src="minigames.js"></script>
