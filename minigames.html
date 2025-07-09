@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MaxBet - Мини-игры</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="minigames.css">
+</head>
+<body>
+    <!-- Шапка -->
+    <div class="header">
+        <div class="logo">🎮 MaxBet - Мини-игры</div>
+        <div class="user-info">
+            <div class="balance">
+                Баланс: <span id="user-balance">0 лупанчиков</span>
+            </div>
+            <div class="user-menu">
+                <span>Привет, <span id="username">Пользователь</span>!</span>
+                <button class="btn btn-secondary" onclick="logout()" style="padding: 8px 16px; width: auto;">Выйти</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Навигация -->
+    <div class="navigation">
+        <a href="main.html" class="nav-tab">📅 События</a>
+        <a href="minigames.html" class="nav-tab active">🎮 Мини-игры</a>
+        <a href="history.html" class="nav-tab">📊 История ставок</a>
+        <a href="profile.html" class="nav-tab">👤 Профиль</a>
+        <a href="admin.html" class="nav-tab" id="admin-link" style="display: none;">🛠️ Админ панель</a>
+        <a href="moderator.html" class="nav-tab" id="moderator-link" style="display: none;">🛡️ Модератор</a>
+    </div>
+    
+    <!-- Основной контент -->
+    <div class="main-content">
+        <!-- Вкладки игр -->
+        <div class="games-tabs">
+            <button class="game-tab active" onclick="showGame('blackjack')">🃏 21 очко</button>
+            <button class="game-tab" onclick="showGame('dice')">🎲 Кости</button>
+            <button class="game-tab" onclick="showGame('roulette')">🎰 Рулетка</button>
+        </div>
+        
+        <!-- Игра 21 очко -->
+        <div id="blackjack-game" class="game-container active">
+            <h2>🃏 21 очко</h2>
+            <p class="game-description">Тяните карты и попробуйте набрать 21 очко! Коэффициент выигрыша: 2x</p>
+            
+            <div class="game-controls">
+                <div class="bet-controls">
+                    <label>Ставка (лупанчики):</label>
+                    <input type="number" id="blackjack-bet" min="1" max="1000" value="10" class="bet-input">
+                    <button class="btn" onclick="startBlackjack()">Начать игру</button>
+                </div>
+            </div>
+            
+            <div class="game-area">
+                <div class="player-area">
+                    <h3>Ваши карты</h3>
+                    <div id="player-cards" class="cards-container"></div>
+                    <div id="player-score" class="score">Очки: 0</div>
+                </div>
+                
+                <div class="dealer-area">
+                    <h3>Карты дилера</h3>
+                    <div id="dealer-cards" class="cards-container"></div>
+                    <div id="dealer-score" class="score">Очки: 0</div>
+                </div>
+                
+                <div class="game-actions" id="blackjack-actions" style="display: none;">
+                    <button class="btn" onclick="hitCard()">Взять карту</button>
+                    <button class="btn" onclick="standGame()">Хватит</button>
+                </div>
+                
+                <div id="blackjack-result" class="game-result"></div>
+            </div>
+        </div>
+        
+        <!-- Игра Кости -->
+        <div id="dice-game" class="game-container">
+            <h2>🎲 Кости</h2>
+            <p class="game-description">Угадайте число на кости! Коэффициент выигрыша: 5x</p>
+            
+            <div class="game-controls">
+                <div class="bet-controls">
+                    <label>Ставка (лупанчики):</label>
+                    <input type="number" id="dice-bet" min="1" max="1000" value="10" class="bet-input">
+                    <label>Ваше число (1-6):</label>
+                    <input type="number" id="dice-guess" min="1" max="6" value="3" class="bet-input">
+                    <button class="btn" onclick="playDice()">Бросить кости</button>
+                </div>
+            </div>
+            
+            <div class="game-area">
+                <div class="dice-display">
+                    <div id="dice-result" class="dice">?</div>
+                </div>
+                <div id="dice-result-text" class="game-result"></div>
+            </div>
+        </div>
+        
+        <!-- Игра Рулетка -->
+        <div id="roulette-game" class="game-container">
+            <h2>🎰 Рулетка</h2>
+            <p class="game-description">Ставьте на числа, цвета или сектора! Разные коэффициенты выигрыша</p>
+            
+            <div class="game-controls">
+                <div class="bet-controls">
+                    <label>Ставка (лупанчики):</label>
+                    <input type="number" id="roulette-bet" min="1" max="1000" value="10" class="bet-input">
+                    <div class="roulette-bet-types">
+                        <button class="bet-type-btn" onclick="selectRouletteBet('red')">🔴 Красное (2x)</button>
+                        <button class="bet-type-btn" onclick="selectRouletteBet('black')">⚫ Черное (2x)</button>
+                        <button class="bet-type-btn" onclick="selectRouletteBet('even')">⚪ Четное (2x)</button>
+                        <button class="bet-type-btn" onclick="selectRouletteBet('odd')">⚪ Нечетное (2x)</button>
+                        <button class="bet-type-btn" onclick="selectRouletteBet('1-18')">1-18 (2x)</button>
+                        <button class="bet-type-btn" onclick="selectRouletteBet('19-36')">19-36 (2x)</button>
+                    </div>
+                    <div class="number-bets">
+                        <label>Или ставка на число (0-36):</label>
+                        <input type="number" id="roulette-number" min="0" max="36" class="bet-input">
+                        <button class="bet-type-btn" onclick="selectRouletteBet('number')">Число (35x)</button>
+                    </div>
+                    <div id="selected-bet" class="selected-bet">Выберите тип ставки</div>
+                    <button class="btn" onclick="spinRoulette()" id="spin-btn" disabled>Крутить рулетку</button>
+                </div>
+            </div>
+            
+            <div class="game-area">
+                <div class="roulette-wheel">
+                    <div id="roulette-result" class="roulette-number">?</div>
+                </div>
+                <div id="roulette-result-text" class="game-result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Загрузка скриптов -->
+    <script src="firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="sync-manager.js"></script>
+    <script src="minigames.js"></script>
+</body>
+</html> 
