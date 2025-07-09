@@ -1,4 +1,4 @@
-// ===== MAIN.JS С ИНТЕГРАЦИЕЙ СИНХРОНИЗАЦИИ =====
+// ===== MAIN.JS С ИСПРАВЛЕННОЙ ИНИЦИАЛИЗАЦИЕЙ =====
 
 // Используем совместимую версию Firebase
 let database = null;
@@ -26,7 +26,6 @@ function initializeFirebase() {
     }
     database = window.firebase.database();
     console.log('🔥 Firebase инициализирован в main.js');
-    console.log('🔥 database в main.js:', database);
 }
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
@@ -43,36 +42,34 @@ let settings = {
 // Награды за ежедневный бонус
 const dailyRewards = [250, 500, 1000, 2000, 3000, 5000, 7000];
 
-// ===== ИНИЦИАЛИЗАЦИЯ =====
+// ===== ИСПРАВЛЕННАЯ ИНИЦИАЛИЗАЦИЯ =====
 window.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 Инициализация main.js');
-    console.log('DOMContentLoaded, database:', database);
+    
     try {
-        // Инициализируем Firebase
+        console.log('1️⃣ Инициализация Firebase...');
         initializeFirebase();
-        console.log('После initializeFirebase, database:', database);
-        console.log('database === window.firebase.database():', database === window.firebase.database());
         
-        // Ждем инициализации sync manager
+        console.log('2️⃣ Ожидание DataSyncManager...');
         await waitForSyncManager();
         
-        // Проверяем авторизацию и инициализируем синхронизацию
+        console.log('3️⃣ Проверка авторизации и синхронизация пользователя...');
         await checkAuth();
         
-        // Загружаем данные
+        console.log('4️⃣ Загрузка настроек...');
         await loadSettings();
+        
+        console.log('5️⃣ Загрузка событий...');
         await loadEvents();
         
-        // Настраиваем слушатели событий синхронизации
+        console.log('6️⃣ Настройка слушателей...');
         setupSyncEventListeners();
         
-        // Синхронизируем пользователя если нужно
-        if (!window.currentUser && window.dataSyncManager && window.dataSyncManager.getCurrentUser()) {
-            window.currentUser = window.dataSyncManager.getCurrentUser();
-            console.log('🔄 Пользователь синхронизирован при инициализации:', window.currentUser);
-        }
+        console.log('7️⃣ Принудительная синхронизация пользователя...');
+        // ИСПРАВЛЕНИЕ: Принудительно синхронизируем пользователя
+        forceSyncUser();
         
-        // Обновляем интерфейс
+        console.log('8️⃣ Обновление интерфейса...');
         updateUserInfo();
         updateDailyBonusButton();
         
@@ -83,6 +80,7 @@ window.addEventListener('DOMContentLoaded', async function() {
         showNotification('Ошибка инициализации приложения: ' + error.message, 'error');
         
         // Fallback: попробовать работать без sync manager
+        console.log('🔄 Запуск fallback инициализации...');
         await fallbackInitialization();
     }
 });
@@ -102,7 +100,25 @@ async function waitForSyncManager() {
         throw new Error('DataSyncManager недоступен');
     }
     
-    console.log('✅ DataSyncManager готов к работе:', window.dataSyncManager);
+    console.log('✅ DataSyncManager готов к работе');
+}
+
+// ===== ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЯ =====
+function forceSyncUser() {
+    if (window.dataSyncManager && window.dataSyncManager.getCurrentUser()) {
+        console.log('🔄 Принудительная синхронизация пользователя...');
+        window.currentUser = window.dataSyncManager.getCurrentUser();
+        
+        updateUserInfo();
+        showRoleSpecificLinks();
+        updateDailyBonusButton();
+        
+        console.log('✅ Пользователь синхронизирован:', window.currentUser.username);
+        return true;
+    } else {
+        console.log('❌ Нет данных пользователя в DataSyncManager');
+        return false;
+    }
 }
 
 // ===== FALLBACK ИНИЦИАЛИЗАЦИЯ =====
@@ -113,6 +129,7 @@ async function fallbackInitialization() {
         await checkAuthFallback();
         await loadSettings();
         await loadEvents();
+        updateUserInfo();
         updateDailyBonusButton();
         
         console.log('✅ Fallback инициализация завершена');
@@ -129,7 +146,6 @@ async function checkAuth() {
     try {
         // Сначала попробуем загрузить из sync manager
         let savedUser = window.dataSyncManager.getLocalUser();
-        console.log('getLocalUser() вернул:', savedUser);
         
         if (!savedUser) {
             savedUser = localStorage.getItem('currentUser');
@@ -137,7 +153,6 @@ async function checkAuth() {
                 savedUser = JSON.parse(savedUser);
             }
         }
-        console.log('Пользователь из localStorage:', savedUser);
         
         if (!savedUser) {
             console.log('❌ Пользователь не найден, перенаправление на login');
@@ -149,19 +164,6 @@ async function checkAuth() {
         
         // Инициализировать пользователя в sync manager
         window.currentUser = await window.dataSyncManager.initializeUser(savedUser.username);
-        console.log('window.currentUser после initializeUser:', window.currentUser);
-        
-        // Синхронизировать с DataSyncManager если нужно
-        if (!window.currentUser && window.dataSyncManager.getCurrentUser()) {
-            window.currentUser = window.dataSyncManager.getCurrentUser();
-            console.log('window.currentUser синхронизирован из DataSyncManager:', window.currentUser);
-        }
-        
-        // Обновить интерфейс
-        updateUserInfo();
-        
-        // Показать админ/модератор ссылки
-        showRoleSpecificLinks();
         
         console.log('✅ Авторизация и синхронизация завершены');
         
@@ -215,9 +217,6 @@ async function checkAuthFallback() {
         };
         localStorage.setItem('currentUser', JSON.stringify(window.currentUser));
         
-        updateUserInfo();
-        showRoleSpecificLinks();
-        
         console.log('✅ Fallback авторизация завершена');
         
     } catch (error) {
@@ -233,8 +232,8 @@ function setupSyncEventListeners() {
     console.log('🎧 Настройка слушателей событий синхронизации');
     
     window.addEventListener('dataSync', (event) => {
-        const { type, data, timestamp } = event.detail;
-        console.log(`📡 Получено событие синхронизации: ${type}`, data);
+        const { type, data } = event.detail;
+        console.log(`📡 Получено событие синхронизации: ${type}`);
         
         switch (type) {
             case 'user_updated':
@@ -271,7 +270,6 @@ function setupSyncEventListeners() {
 // ===== ОБРАБОТЧИКИ СОБЫТИЙ СИНХРОНИЗАЦИИ =====
 function handleUserDataUpdate(data) {
     if (data.user) {
-        const oldBalance = window.currentUser ? window.currentUser.balance : 0;
         window.currentUser = data.user;
         
         // Обновить интерфейс
@@ -298,8 +296,6 @@ function handleOfflineUserUpdate(data) {
     if (data.user) {
         window.currentUser = data.user;
         updateUserInfo();
-        
-        // Показать индикатор офлайн обновления
         showNotification('Данные обновлены локально (офлайн режим)', 'warning');
     }
 }
@@ -327,30 +323,34 @@ function handleConnectionLost() {
 
 // ===== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА =====
 function updateUserInfo() {
-    console.log('Вызван updateUserInfo, window.currentUser:', window.currentUser);
+    // ИСПРАВЛЕНИЕ: Принудительно синхронизируем пользователя если нужно
+    if (!window.currentUser && window.dataSyncManager && window.dataSyncManager.getCurrentUser()) {
+        window.currentUser = window.dataSyncManager.getCurrentUser();
+        console.log('🔄 Пользователь автоматически синхронизирован в updateUserInfo');
+    }
+    
     if (!window.currentUser) {
         const savedUser = localStorage.getItem('currentUser');
         if (savedUser) {
             window.currentUser = JSON.parse(savedUser);
-            console.log('window.currentUser восстановлен из localStorage:', window.currentUser);
+            console.log('📱 window.currentUser восстановлен из localStorage');
         } else {
-            console.warn('window.currentUser не найден даже в localStorage');
+            console.warn('⚠️ window.currentUser не найден');
+            return;
         }
     }
+    
     const balanceElement = document.getElementById('user-balance');
     const usernameElement = document.getElementById('username');
-    if (balanceElement) {
-        balanceElement.textContent = window.currentUser && window.currentUser.balance !== undefined ? `${window.currentUser.balance.toLocaleString()} лупанчиков` : 'нет данных';
-        console.log('Обновлен баланс:', balanceElement.textContent);
-    } else {
-        console.warn('balanceElement не найден');
+    
+    if (balanceElement && window.currentUser.balance !== undefined) {
+        balanceElement.textContent = `${window.currentUser.balance.toLocaleString()} лупанчиков`;
     }
-    if (usernameElement) {
-        usernameElement.textContent = window.currentUser && window.currentUser.username ? window.currentUser.username : 'нет данных';
-        console.log('Обновлен username:', usernameElement.textContent);
-    } else {
-        console.warn('usernameElement не найден');
+    
+    if (usernameElement && window.currentUser.username) {
+        usernameElement.textContent = window.currentUser.username;
     }
+    
     // Обновить индикатор синхронизации
     updateSyncStatusIndicator();
 }
@@ -426,63 +426,6 @@ function addSyncStatusIndicator() {
     }
 }
 
-// ===== УВЕДОМЛЕНИЯ =====
-function showBalanceChangeNotification(diff) {
-    const message = diff > 0 
-        ? `💰 Баланс увеличен на ${diff} лупанчиков!`
-        : `📉 Баланс уменьшен на ${Math.abs(diff)} лупанчиков`;
-        
-    showNotification(message, diff > 0 ? 'success' : 'warning');
-}
-
-function showNotification(message, type = 'info') {
-    console.log(`📢 Уведомление (${type}): ${message}`);
-    
-    // Удаляем предыдущие уведомления
-    const existingNotifications = document.querySelectorAll('.notification');
-    existingNotifications.forEach(notification => notification.remove());
-    
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    
-    // Стили для уведомления
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 10000;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        animation: slideIn 0.3s ease;
-        max-width: 400px;
-        word-wrap: break-word;
-    `;
-    
-    // Цвета по типам
-    const colors = {
-        success: '#4caf50',
-        error: '#f44336',
-        warning: '#ff9800',
-        info: '#2196f3'
-    };
-    
-    notification.style.backgroundColor = colors[type] || colors.info;
-    
-    document.body.appendChild(notification);
-    
-    // Автоудаление через 4 секунды
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.style.animation = 'slideIn 0.3s ease reverse';
-            setTimeout(() => notification.remove(), 300);
-        }
-    }, 4000);
-}
-
 // ===== ЗАГРУЗКА НАСТРОЕК =====
 async function loadSettings() {
     try {
@@ -503,13 +446,9 @@ async function loadSettings() {
 async function loadEvents() {
     try {
         console.log('📅 Загрузка событий...');
-        console.log('database в loadEvents:', database);
-        console.log('database === window.firebase.database():', database === window.firebase.database());
         const eventsRef = database.ref('events');
-        console.log('eventsRef:', eventsRef);
         const snapshot = await eventsRef.once('value');
-        console.log('SNAPSHOT:', snapshot);
-        console.log('snapshot.exists():', snapshot.exists(), 'snapshot.val():', snapshot.val());
+        
         if (snapshot.exists()) {
             window.events = snapshot.val();
             console.log('📅 События загружены из Firebase:', Object.keys(window.events).length);
@@ -517,11 +456,12 @@ async function loadEvents() {
             window.events = {};
             console.log('📅 События не найдены');
         }
-        console.log('📅 Финальный объект events:', window.events);
+        
         displayEvents();
     } catch (error) {
         console.error('❌ Ошибка загрузки событий:', error);
         showNotification('Ошибка загрузки событий: ' + error.message, 'error');
+        
         // Показать заглушку
         const container = document.getElementById('events-container');
         if (container) {
@@ -533,6 +473,61 @@ async function loadEvents() {
             `;
         }
     }
+}
+
+// ===== ОТОБРАЖЕНИЕ СОБЫТИЙ =====
+function displayEvents(filter = 'all') {
+    const events = window.events;
+    const container = document.getElementById('events-container');
+    if (!container) {
+        console.warn('❌ Контейнер #events-container не найден');
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    if (!events || typeof events !== 'object') {
+        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий</p></div>';
+        console.warn('⚠️ events не объект:', events);
+        return;
+    }
+    
+    const filteredEvents = Object.entries(events).filter(([id, event]) => {
+        const isActive = event.status === 'active';
+        const categoryMatch = filter === 'all' || event.category === filter;
+        return isActive && categoryMatch;
+    });
+    
+    if (filteredEvents.length === 0) {
+        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий</p></div>';
+        return;
+    }
+    
+    filteredEvents.forEach(([eventId, event]) => {
+        const eventElement = document.createElement('div');
+        eventElement.className = 'event-card';
+        eventElement.innerHTML = `
+            <div class="event-header">
+                <div>
+                    <div class="event-title">${event.title}</div>
+                </div>
+                <div class="event-category">${getCategoryName(event.category)}</div>
+            </div>
+            <div class="event-description">${event.description}</div>
+            <div class="event-options">
+                ${(event.options && event.coefficients && event.options.length === event.coefficients.length) ?
+                    event.options.map((option, index) => `
+                        <button class="option-btn" onclick="selectOption('${eventId}', '${option}', ${event.coefficients[index]})">
+                            <span class="option-text">${option}</span>
+                            <span class="option-coefficient">${event.coefficients[index]}</span>
+                        </button>
+                    `).join('') : '<span style="color:red">Некорректные опции/коэффициенты</span>'}
+            </div>
+        `;
+        container.appendChild(eventElement);
+    });
+    
+    console.log(`📊 Отображено ${filteredEvents.length} событий`);
 }
 
 // ===== ФИЛЬТРАЦИЯ СОБЫТИЙ =====
@@ -720,8 +715,8 @@ async function placeBet(type) {
             await window.dataSyncManager.updateUserData({ balance: newBalance });
         } else {
             // Fallback: обновить напрямую
-                    const userRef = database.ref(`users/${window.currentUser.username}`);
-        await userRef.update({ balance: newBalance });
+            const userRef = database.ref(`users/${window.currentUser.username}`);
+            await userRef.update({ balance: newBalance });
             
             window.currentUser.balance = newBalance;
             localStorage.setItem('currentUser', JSON.stringify(window.currentUser));
@@ -850,8 +845,8 @@ async function claimDailyBonus() {
             await window.dataSyncManager.updateUserData(updateData);
         } else {
             // Fallback: обновить напрямую
-                    const userRef = database.ref(`users/${window.currentUser.username}`);
-        await userRef.update(updateData);
+            const userRef = database.ref(`users/${window.currentUser.username}`);
+            await userRef.update(updateData);
             
             Object.assign(window.currentUser, updateData);
             localStorage.setItem('currentUser', JSON.stringify(window.currentUser));
@@ -866,6 +861,63 @@ async function claimDailyBonus() {
         console.error('❌ Ошибка начисления бонуса:', error);
         showNotification('Не удалось получить бонус: ' + error.message, 'error');
     }
+}
+
+// ===== УВЕДОМЛЕНИЯ =====
+function showBalanceChangeNotification(diff) {
+    const message = diff > 0 
+        ? `💰 Баланс увеличен на ${diff} лупанчиков!`
+        : `📉 Баланс уменьшен на ${Math.abs(diff)} лупанчиков`;
+        
+    showNotification(message, diff > 0 ? 'success' : 'warning');
+}
+
+function showNotification(message, type = 'info') {
+    console.log(`📢 Уведомление (${type}): ${message}`);
+    
+    // Удаляем предыдущие уведомления
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => notification.remove());
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    // Стили для уведомления
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+        word-wrap: break-word;
+    `;
+    
+    // Цвета по типам
+    const colors = {
+        success: '#4caf50',
+        error: '#f44336',
+        warning: '#ff9800',
+        info: '#2196f3'
+    };
+    
+    notification.style.backgroundColor = colors[type] || colors.info;
+    
+    document.body.appendChild(notification);
+    
+    // Автоудаление через 4 секунды
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, 4000);
 }
 
 // ===== ВЫХОД ИЗ СИСТЕМЫ =====
@@ -902,7 +954,10 @@ window.closeDailyBonusModal = closeDailyBonusModal;
 window.loadEvents = loadEvents;
 window.getCategoryName = getCategoryName;
 window.displayEvents = displayEvents;
-window.syncUser = syncUser;
+
+// ИСПРАВЛЕНИЕ: Убедимся что syncUser экспортируется
+window.syncUser = forceSyncUser;
+window.forceSyncUser = forceSyncUser;
 
 // Глобальная функция для тестирования синхронизации
 window.testSync = function() {
@@ -914,81 +969,40 @@ window.testSync = function() {
     }
 };
 
-// Функция для принудительной синхронизации пользователя
-window.syncUser = function() {
-    if (window.dataSyncManager && window.dataSyncManager.getCurrentUser()) {
-        window.currentUser = window.dataSyncManager.getCurrentUser();
-        updateUserInfo();
-        showRoleSpecificLinks();
-        console.log('✅ Пользователь синхронизирован:', window.currentUser);
-        return true;
-    } else {
-        console.log('❌ Нет данных пользователя в DataSyncManager');
-        return false;
-    }
-};
+// ===== АВТОМАТИЧЕСКИЕ ПРОВЕРКИ =====
+// Дополнительная проверка после полной загрузки страницы
+window.addEventListener('load', function() {
+    console.log('🌐 Страница полностью загружена');
+    
+    // ИСПРАВЛЕНИЕ: Принудительная синхронизация после загрузки
+    setTimeout(() => {
+        // Проверяем и синхронизируем пользователя
+        if (!window.currentUser) {
+            console.warn('⚠️ Пользователь не синхронизирован, принудительная синхронизация...');
+            forceSyncUser();
+        }
+        
+        // Проверяем события
+        if (!window.events || Object.keys(window.events).length === 0) {
+            console.warn('⚠️ События не загружены, принудительная загрузка...');
+            loadEvents().catch(error => {
+                console.error('❌ Ошибка принудительной загрузки событий:', error);
+            });
+        } else {
+            // Принудительно отобразить события
+            displayEvents();
+        }
+        
+        console.log('✅ Автоматические проверки завершены');
+    }, 1000);
+});
 
 // ===== ОБРАБОТКА ОШИБОК =====
 window.addEventListener('error', function(event) {
     console.error('🚨 JavaScript ошибка в main.js:', event.error);
-    console.error('📍 Файл:', event.filename, 'Строка:', event.lineno);
 });
 
 window.addEventListener('unhandledrejection', function(event) {
     console.error('🚨 Необработанная Promise ошибка:', event.reason);
     event.preventDefault();
 });
-
-function displayEvents(filter = 'all') {
-    const events = window.events;
-    const container = document.getElementById('events-container');
-    if (!container) {
-        console.warn('container #events-container не найден');
-        return;
-    }
-    container.innerHTML = '';
-    console.log('displayEvents вызван, filter:', filter);
-    console.log('events:', events);
-    if (!events || typeof events !== 'object') {
-        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий (events не объект)</p></div>';
-        console.warn('events не объект:', events);
-        return;
-    }
-    const filteredEvents = Object.entries(events).filter(([id, event]) => {
-        const isActive = event.status === 'active';
-        const categoryMatch = filter === 'all' || event.category === filter;
-        if (!isActive) console.log('Событие не активно:', id, event);
-        if (!categoryMatch) console.log('Событие не подходит по категории:', id, event);
-        return isActive && categoryMatch;
-    });
-    console.log('filteredEvents:', filteredEvents);
-    if (filteredEvents.length === 0) {
-        container.innerHTML = '<div class="bet-slip-empty"><p>Нет доступных событий</p></div>';
-        return;
-    }
-    filteredEvents.forEach(([eventId, event]) => {
-        console.log('Отрисовываем событие:', eventId, event);
-        const eventElement = document.createElement('div');
-        eventElement.className = 'event-card';
-        eventElement.innerHTML = `
-            <div class="event-header">
-                <div>
-                    <div class="event-title">${event.title}</div>
-                </div>
-                <div class="event-category">${getCategoryName(event.category)}</div>
-            </div>
-            <div class="event-description">${event.description}</div>
-            <div class="event-options">
-                ${(event.options && event.coefficients && event.options.length === event.coefficients.length) ?
-                    event.options.map((option, index) => `
-                        <button class="option-btn" onclick="selectOption('${eventId}', '${option}', ${event.coefficients[index]})">
-                            <span class="option-text">${option}</span>
-                            <span class="option-coefficient">${event.coefficients[index]}</span>
-                        </button>
-                    `).join('') : '<span style="color:red">Некорректные опции/коэффициенты</span>'}
-            </div>
-        `;
-        container.appendChild(eventElement);
-    });
-    console.log(`📊 Отображено ${filteredEvents.length} событий`);
-}
