@@ -37,7 +37,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Показываем первую игру
         showGame('blackjack');
         
+        // Принудительно переопределяем функции в глобальной области
+        window.showGame = showGame;
+        window.startBlackjack = startBlackjack;
+        window.hitCard = hitCard;
+        window.standGame = standGame;
+        window.playDice = playDice;
+        window.selectRouletteBet = selectRouletteBet;
+        window.spinRoulette = spinRoulette;
+        
         console.log('✅ Страница мини-игр инициализирована');
+        console.log('🎮 Все функции переопределены в глобальной области');
+        
+        // Проверяем, что функции переопределились
+        console.log('🔍 Проверка функций:');
+        console.log('  showGame:', typeof window.showGame);
+        console.log('  startBlackjack:', typeof window.startBlackjack);
+        console.log('  playDice:', typeof window.playDice);
+        console.log('  selectRouletteBet:', typeof window.selectRouletteBet);
         
     } catch (error) {
         console.error('❌ Критическая ошибка инициализации:', error);
@@ -490,253 +507,320 @@ function startBlackjack() {
 }
 
 function hitCard() {
-    if (blackjackGame) {
-        blackjackGame.hit();
+    try {
+        if (blackjackGame) {
+            blackjackGame.hit();
+        } else {
+            showNotification('Игра не начата', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка в hitCard:', error);
+        showNotification('Ошибка при взятии карты', 'error');
     }
 }
 
 function standGame() {
-    if (blackjackGame) {
-        blackjackGame.stand();
+    try {
+        if (blackjackGame) {
+            blackjackGame.stand();
+        } else {
+            showNotification('Игра не начата', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка в standGame:', error);
+        showNotification('Ошибка при завершении игры', 'error');
     }
 }
 
 // ===== ИГРА КОСТИ =====
 function playDice() {
-    const betInput = document.getElementById('dice-bet');
-    const guessInput = document.getElementById('dice-guess');
-    const bet = parseInt(betInput.value);
-    const guess = parseInt(guessInput.value);
-    
-    if (!bet || bet < 1) {
-        showNotification('Введите корректную ставку', 'error');
-        return;
-    }
-    
-    if (!guess || guess < 1 || guess > 6) {
-        showNotification('Введите число от 1 до 6', 'error');
-        return;
-    }
-    
-    if (!currentUser || (currentUser.balance || 0) < bet) {
-        showNotification('Недостаточно лупанчиков для ставки', 'error');
-        return;
-    }
-    
-    // Бросаем кости
-    const diceResult = Math.floor(Math.random() * 6) + 1;
-    
-    // Показываем результат
-    const diceElement = document.getElementById('dice-result');
-    diceElement.textContent = diceResult;
-    
-    // Определяем результат
-    const isWin = diceResult === guess;
-    const winAmount = isWin ? bet * 5 : 0;
-    const loseAmount = isWin ? 0 : bet;
-    
-    // Обновляем баланс
-    if (currentUser) {
-        const newBalance = (currentUser.balance || 0) + winAmount - loseAmount;
-        currentUser.balance = newBalance;
+    try {
+        const betInput = document.getElementById('dice-bet');
+        const guessInput = document.getElementById('dice-guess');
         
-        // Обновляем в localStorage
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        
-        // Пытаемся обновить через DataSyncManager, если он доступен
-        if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
-            try {
-                dataSyncManager.updateUserBalance(newBalance);
-            } catch (error) {
-                console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
-            }
+        if (!betInput || !guessInput) {
+            console.error('❌ Элементы dice-bet или dice-guess не найдены');
+            return;
         }
         
-        updateUserInfo();
+        const bet = parseInt(betInput.value);
+        const guess = parseInt(guessInput.value);
+        
+        if (!bet || bet < 1) {
+            showNotification('Введите корректную ставку', 'error');
+            return;
+        }
+        
+        if (!guess || guess < 1 || guess > 6) {
+            showNotification('Введите число от 1 до 6', 'error');
+            return;
+        }
+        
+        if (!currentUser || (currentUser.balance || 0) < bet) {
+            showNotification('Недостаточно лупанчиков для ставки', 'error');
+            return;
+        }
+        
+        // Бросаем кости
+        const diceResult = Math.floor(Math.random() * 6) + 1;
+        
+        // Показываем результат
+        const diceElement = document.getElementById('dice-result');
+        if (diceElement) {
+            diceElement.textContent = diceResult;
+        }
+        
+        // Определяем результат
+        const isWin = diceResult === guess;
+        const winAmount = isWin ? bet * 5 : 0;
+        const loseAmount = isWin ? 0 : bet;
+        
+        // Обновляем баланс
+        if (currentUser) {
+            const newBalance = (currentUser.balance || 0) + winAmount - loseAmount;
+            currentUser.balance = newBalance;
+            
+            // Обновляем в localStorage
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // Пытаемся обновить через DataSyncManager, если он доступен
+            if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
+                try {
+                    dataSyncManager.updateUserBalance(newBalance);
+                } catch (error) {
+                    console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+                }
+            }
+            
+            updateUserInfo();
+        }
+        
+        // Показываем результат
+        const resultElement = document.getElementById('dice-result-text');
+        if (resultElement) {
+            let message;
+            if (isWin) {
+                message = `Победа! Вы угадали число ${diceResult}! Выигрыш: ${winAmount} лупанчиков!`;
+                resultElement.className = 'game-result win';
+                showNotification(`Выигрыш: +${winAmount} лупанчиков!`, 'success');
+            } else {
+                message = `Не угадали! Выпало ${diceResult}, а вы загадали ${guess}. Проигрыш: ${loseAmount} лупанчиков.`;
+                resultElement.className = 'game-result lose';
+                showNotification(`Проигрыш: ${loseAmount} лупанчиков`, 'error');
+            }
+            resultElement.textContent = message;
+        }
+        
+        console.log('✅ Игра в кости завершена');
+    } catch (error) {
+        console.error('❌ Ошибка в playDice:', error);
+        showNotification('Ошибка при игре в кости', 'error');
     }
-    
-    // Показываем результат
-    const resultElement = document.getElementById('dice-result-text');
-    let message;
-    if (isWin) {
-        message = `Победа! Вы угадали число ${diceResult}! Выигрыш: ${winAmount} лупанчиков!`;
-        resultElement.className = 'game-result win';
-        showNotification(`Выигрыш: +${winAmount} лупанчиков!`, 'success');
-    } else {
-        message = `Не угадали! Выпало ${diceResult}, а вы загадали ${guess}. Проигрыш: ${loseAmount} лупанчиков.`;
-        resultElement.className = 'game-result lose';
-        showNotification(`Проигрыш: ${loseAmount} лупанчиков`, 'error');
-    }
-    resultElement.textContent = message;
 }
 
 // ===== ИГРА РУЛЕТКА =====
 function selectRouletteBet(type) {
-    rouletteBetType = type;
-    
-    // Убираем выделение со всех кнопок
-    document.querySelectorAll('.bet-type-btn').forEach(btn => {
-        btn.classList.remove('selected');
-    });
-    
-    // Выделяем выбранную кнопку
-    // Находим кнопку по типу ставки
-    const selectedButton = document.querySelector(`[onclick*="${type}"]`);
-    if (selectedButton) {
-        selectedButton.classList.add('selected');
+    try {
+        rouletteBetType = type;
+        
+        // Убираем выделение со всех кнопок
+        document.querySelectorAll('.bet-type-btn').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        
+        // Выделяем выбранную кнопку
+        // Находим кнопку по типу ставки
+        const selectedButton = document.querySelector(`[onclick*="${type}"]`);
+        if (selectedButton) {
+            selectedButton.classList.add('selected');
+        }
+        
+        // Обновляем отображение выбранной ставки
+        const selectedBetElement = document.getElementById('selected-bet');
+        if (!selectedBetElement) {
+            console.error('❌ Элемент selected-bet не найден');
+            return;
+        }
+        
+        let betText = '';
+        
+        switch (type) {
+            case 'red':
+                betText = '🔴 Красное (коэффициент: 2x)';
+                break;
+            case 'black':
+                betText = '⚫ Черное (коэффициент: 2x)';
+                break;
+            case 'even':
+                betText = '⚪ Четное (коэффициент: 2x)';
+                break;
+            case 'odd':
+                betText = '⚪ Нечетное (коэффициент: 2x)';
+                break;
+            case '1-18':
+                betText = '1-18 (коэффициент: 2x)';
+                break;
+            case '19-36':
+                betText = '19-36 (коэффициент: 2x)';
+                break;
+            case 'number':
+                const numberInput = document.getElementById('roulette-number');
+                if (!numberInput) {
+                    console.error('❌ Элемент roulette-number не найден');
+                    return;
+                }
+                const number = parseInt(numberInput.value);
+                if (number >= 0 && number <= 36) {
+                    rouletteBetNumber = number;
+                    betText = `Число ${number} (коэффициент: 35x)`;
+                } else {
+                    showNotification('Введите число от 0 до 36', 'error');
+                    return;
+                }
+                break;
+        }
+        
+        selectedBetElement.textContent = betText;
+        
+        const spinBtn = document.getElementById('spin-btn');
+        if (spinBtn) {
+            spinBtn.disabled = false;
+        }
+        
+        console.log('✅ Выбрана ставка в рулетке:', type);
+    } catch (error) {
+        console.error('❌ Ошибка в selectRouletteBet:', error);
+        showNotification('Ошибка при выборе ставки', 'error');
     }
-    
-    // Обновляем отображение выбранной ставки
-    const selectedBetElement = document.getElementById('selected-bet');
-    let betText = '';
-    
-    switch (type) {
-        case 'red':
-            betText = '🔴 Красное (коэффициент: 2x)';
-            break;
-        case 'black':
-            betText = '⚫ Черное (коэффициент: 2x)';
-            break;
-        case 'even':
-            betText = '⚪ Четное (коэффициент: 2x)';
-            break;
-        case 'odd':
-            betText = '⚪ Нечетное (коэффициент: 2x)';
-            break;
-        case '1-18':
-            betText = '1-18 (коэффициент: 2x)';
-            break;
-        case '19-36':
-            betText = '19-36 (коэффициент: 2x)';
-            break;
-        case 'number':
-            const numberInput = document.getElementById('roulette-number');
-            const number = parseInt(numberInput.value);
-            if (number >= 0 && number <= 36) {
-                rouletteBetNumber = number;
-                betText = `Число ${number} (коэффициент: 35x)`;
-            } else {
-                showNotification('Введите число от 0 до 36', 'error');
-                return;
-            }
-            break;
-    }
-    
-    selectedBetElement.textContent = betText;
-    document.getElementById('spin-btn').disabled = false;
 }
 
 function spinRoulette() {
-    if (!rouletteBetType) {
-        showNotification('Выберите тип ставки', 'error');
-        return;
-    }
-    
-    const betInput = document.getElementById('roulette-bet');
-    const bet = parseInt(betInput.value);
-    
-    if (!bet || bet < 1) {
-        showNotification('Введите корректную ставку', 'error');
-        return;
-    }
-    
-    if (!currentUser || (currentUser.balance || 0) < bet) {
-        showNotification('Недостаточно лупанчиков для ставки', 'error');
-        return;
-    }
-    
-    // Генерируем результат рулетки (0-36)
-    const rouletteResult = Math.floor(Math.random() * 37);
-    
-    // Показываем результат
-    const resultElement = document.getElementById('roulette-result');
-    resultElement.textContent = rouletteResult;
-    
-    // Определяем цвет результата
-    if (rouletteResult === 0) {
-        resultElement.className = 'roulette-number green';
-    } else if ([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(rouletteResult)) {
-        resultElement.className = 'roulette-number red';
-    } else {
-        resultElement.className = 'roulette-number black';
-    }
-    
-    // Определяем результат ставки
-    let isWin = false;
-    let multiplier = 0;
-    
-    switch (rouletteBetType) {
-        case 'red':
-            isWin = rouletteResult !== 0 && [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(rouletteResult);
-            multiplier = 2;
-            break;
-        case 'black':
-            isWin = rouletteResult !== 0 && ![1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(rouletteResult);
-            multiplier = 2;
-            break;
-        case 'even':
-            isWin = rouletteResult !== 0 && rouletteResult % 2 === 0;
-            multiplier = 2;
-            break;
-        case 'odd':
-            isWin = rouletteResult !== 0 && rouletteResult % 2 === 1;
-            multiplier = 2;
-            break;
-        case '1-18':
-            isWin = rouletteResult >= 1 && rouletteResult <= 18;
-            multiplier = 2;
-            break;
-        case '19-36':
-            isWin = rouletteResult >= 19 && rouletteResult <= 36;
-            multiplier = 2;
-            break;
-        case 'number':
-            isWin = rouletteResult === rouletteBetNumber;
-            multiplier = 35;
-            break;
-    }
-    
-    // Обновляем баланс
-    const winAmount = isWin ? bet * multiplier : 0;
-    const loseAmount = isWin ? 0 : bet;
-    
-    if (currentUser) {
-        const newBalance = (currentUser.balance || 0) + winAmount - loseAmount;
-        currentUser.balance = newBalance;
+    try {
+        if (!rouletteBetType) {
+            showNotification('Выберите тип ставки', 'error');
+            return;
+        }
         
-        // Обновляем в localStorage
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        const betInput = document.getElementById('roulette-bet');
+        if (!betInput) {
+            console.error('❌ Элемент roulette-bet не найден');
+            return;
+        }
         
-        // Пытаемся обновить через DataSyncManager, если он доступен
-        if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
-            try {
-                dataSyncManager.updateUserBalance(newBalance);
-            } catch (error) {
-                console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+        const bet = parseInt(betInput.value);
+        
+        if (!bet || bet < 1) {
+            showNotification('Введите корректную ставку', 'error');
+            return;
+        }
+        
+        if (!currentUser || (currentUser.balance || 0) < bet) {
+            showNotification('Недостаточно лупанчиков для ставки', 'error');
+            return;
+        }
+        
+        // Генерируем результат рулетки (0-36)
+        const rouletteResult = Math.floor(Math.random() * 37);
+        
+        // Показываем результат
+        const resultElement = document.getElementById('roulette-result');
+        if (resultElement) {
+            resultElement.textContent = rouletteResult;
+            
+            // Определяем цвет результата
+            if (rouletteResult === 0) {
+                resultElement.className = 'roulette-number green';
+            } else if ([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(rouletteResult)) {
+                resultElement.className = 'roulette-number red';
+            } else {
+                resultElement.className = 'roulette-number black';
             }
         }
         
-        updateUserInfo();
+        // Определяем результат ставки
+        let isWin = false;
+        let multiplier = 0;
+        
+        switch (rouletteBetType) {
+            case 'red':
+                isWin = rouletteResult !== 0 && [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(rouletteResult);
+                multiplier = 2;
+                break;
+            case 'black':
+                isWin = rouletteResult !== 0 && ![1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(rouletteResult);
+                multiplier = 2;
+                break;
+            case 'even':
+                isWin = rouletteResult !== 0 && rouletteResult % 2 === 0;
+                multiplier = 2;
+                break;
+            case 'odd':
+                isWin = rouletteResult !== 0 && rouletteResult % 2 === 1;
+                multiplier = 2;
+                break;
+            case '1-18':
+                isWin = rouletteResult >= 1 && rouletteResult <= 18;
+                multiplier = 2;
+                break;
+            case '19-36':
+                isWin = rouletteResult >= 19 && rouletteResult <= 36;
+                multiplier = 2;
+                break;
+            case 'number':
+                isWin = rouletteResult === rouletteBetNumber;
+                multiplier = 35;
+                break;
+        }
+        
+        // Обновляем баланс
+        const winAmount = isWin ? bet * multiplier : 0;
+        const loseAmount = isWin ? 0 : bet;
+        
+        if (currentUser) {
+            const newBalance = (currentUser.balance || 0) + winAmount - loseAmount;
+            currentUser.balance = newBalance;
+            
+            // Обновляем в localStorage
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // Пытаемся обновить через DataSyncManager, если он доступен
+            if (dataSyncManager && typeof dataSyncManager.updateUserBalance === 'function') {
+                try {
+                    dataSyncManager.updateUserBalance(newBalance);
+                } catch (error) {
+                    console.warn('⚠️ Ошибка обновления баланса через DataSyncManager:', error);
+                }
+            }
+            
+            updateUserInfo();
+        }
+        
+        // Показываем результат
+        const resultTextElement = document.getElementById('roulette-result-text');
+        if (resultTextElement) {
+            let message;
+            if (isWin) {
+                message = `Победа! Выигрыш: ${winAmount} лупанчиков!`;
+                resultTextElement.className = 'game-result win';
+                showNotification(`Выигрыш: +${winAmount} лупанчиков!`, 'success');
+            } else {
+                message = `Поражение! Проигрыш: ${loseAmount} лупанчиков.`;
+                resultTextElement.className = 'game-result lose';
+                showNotification(`Проигрыш: ${loseAmount} лупанчиков`, 'error');
+            }
+            resultTextElement.textContent = message;
+        }
+        
+        // Сбрасываем выбор ставки
+        setTimeout(() => {
+            resetGameState();
+        }, 3000);
+        
+        console.log('✅ Игра в рулетку завершена');
+    } catch (error) {
+        console.error('❌ Ошибка в spinRoulette:', error);
+        showNotification('Ошибка при игре в рулетку', 'error');
     }
-    
-    // Показываем результат
-    const resultTextElement = document.getElementById('roulette-result-text');
-    let message;
-    if (isWin) {
-        message = `Победа! Выигрыш: ${winAmount} лупанчиков!`;
-        resultTextElement.className = 'game-result win';
-        showNotification(`Выигрыш: +${winAmount} лупанчиков!`, 'success');
-    } else {
-        message = `Поражение! Проигрыш: ${loseAmount} лупанчиков.`;
-        resultTextElement.className = 'game-result lose';
-        showNotification(`Проигрыш: ${loseAmount} лупанчиков`, 'error');
-    }
-    resultTextElement.textContent = message;
-    
-    // Сбрасываем выбор ставки
-    setTimeout(() => {
-        resetGameState();
-    }, 3000);
 }
 
 // ===== УТИЛИТЫ =====
@@ -773,8 +857,30 @@ console.log('🎮 Все функции мини-игр переопределе
 // Автоматически показываем первую игру после загрузки
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        if (typeof showGame === 'function') {
-            showGame('blackjack');
+        if (typeof window.showGame === 'function') {
+            window.showGame('blackjack');
         }
     }, 100);
+    
+    // Дополнительная проверка функций через 2 секунды
+    setTimeout(() => {
+        console.log('🔍 Финальная проверка функций:');
+        console.log('  window.showGame:', typeof window.showGame);
+        console.log('  window.startBlackjack:', typeof window.startBlackjack);
+        console.log('  window.hitCard:', typeof window.hitCard);
+        console.log('  window.standGame:', typeof window.standGame);
+        console.log('  window.playDice:', typeof window.playDice);
+        console.log('  window.selectRouletteBet:', typeof window.selectRouletteBet);
+        console.log('  window.spinRoulette:', typeof window.spinRoulette);
+        
+        // Проверяем, что функции не являются заглушками
+        if (typeof window.startBlackjack === 'function') {
+            const functionString = window.startBlackjack.toString();
+            if (functionString.includes('Временная заглушка')) {
+                console.warn('⚠️ Функция startBlackjack все еще является заглушкой!');
+            } else {
+                console.log('✅ Функция startBlackjack правильно переопределена');
+            }
+        }
+    }, 2000);
 }); 
