@@ -6,6 +6,48 @@ let blackjackGame = null;
 let rouletteBetType = null;
 let rouletteBetNumber = null;
 
+// ===== ПРЕДВАРИТЕЛЬНЫЙ ЭКСПОРТ ФУНКЦИЙ =====
+// Экспортируем функции сразу, чтобы они были доступны в HTML
+window.showGame = function(gameType) {
+    // Временная заглушка, будет переопределена позже
+    console.log('showGame вызвана с:', gameType);
+};
+
+window.startBlackjack = function() {
+    // Временная заглушка, будет переопределена позже
+    console.log('startBlackjack вызвана');
+};
+
+window.hitCard = function() {
+    // Временная заглушка, будет переопределена позже
+    console.log('hitCard вызвана');
+};
+
+window.standGame = function() {
+    // Временная заглушка, будет переопределена позже
+    console.log('standGame вызвана');
+};
+
+window.playDice = function() {
+    // Временная заглушка, будет переопределена позже
+    console.log('playDice вызвана');
+};
+
+window.selectRouletteBet = function(type) {
+    // Временная заглушка, будет переопределена позже
+    console.log('selectRouletteBet вызвана с:', type);
+};
+
+window.spinRoulette = function() {
+    // Временная заглушка, будет переопределена позже
+    console.log('spinRoulette вызвана');
+};
+
+window.logout = function() {
+    localStorage.removeItem('currentUser');
+    window.location.href = 'login.html';
+};
+
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🎮 Инициализация страницы мини-игр...');
@@ -54,17 +96,40 @@ async function initializeFirebase() {
 
 // ===== ИНИЦИАЛИЗАЦИЯ DATA SYNC MANAGER =====
 async function initializeDataSyncManager() {
+    // Проверяем, есть ли уже глобальный экземпляр
+    if (window.dataSyncManager) {
+        dataSyncManager = window.dataSyncManager;
+        console.log('🔄 Используем существующий DataSyncManager');
+        return;
+    }
+    
     if (typeof DataSyncManager === 'undefined') {
         throw new Error('DataSyncManager не загружен');
     }
     
-    dataSyncManager = new DataSyncManager();
-    await dataSyncManager.initialize();
+    // Ждем инициализации глобального экземпляра
+    let attempts = 0;
+    while (!window.dataSyncManager && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    
+    if (window.dataSyncManager) {
+        dataSyncManager = window.dataSyncManager;
+        console.log('🔄 Используем глобальный DataSyncManager');
+    } else {
+        // Создаем новый экземпляр, если глобальный недоступен
+        dataSyncManager = new DataSyncManager();
+        await dataSyncManager.waitForReady();
+        console.log('🔄 Создан новый DataSyncManager');
+    }
     
     // Слушаем обновления пользователя
-    dataSyncManager.on('user_updated', (user) => {
-        currentUser = user;
-        updateUserInfo();
+    window.addEventListener('dataSync', (event) => {
+        if (event.detail.type === 'user_updated') {
+            currentUser = event.detail.data.user;
+            updateUserInfo();
+        }
     });
     
     console.log('🔄 DataSyncManager инициализирован');
@@ -88,57 +153,96 @@ function updateUserInfo() {
 
 // ===== ПЕРЕКЛЮЧЕНИЕ ИГР =====
 function showGame(gameType) {
-    // Скрываем все игры
-    document.querySelectorAll('.game-container').forEach(container => {
-        container.classList.remove('active');
-    });
-    
-    // Убираем активность со всех вкладок
-    document.querySelectorAll('.game-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    // Показываем выбранную игру
-    document.getElementById(`${gameType}-game`).classList.add('active');
-    
-    // Активируем соответствующую вкладку
-    event.target.classList.add('active');
-    
-    currentGame = gameType;
-    
-    // Сбрасываем состояние игры
-    resetGameState();
+    try {
+        console.log(`🎮 Переключение на игру: ${gameType}`);
+        
+        // Скрываем все игры
+        document.querySelectorAll('.game-container').forEach(container => {
+            container.classList.remove('active');
+        });
+        
+        // Убираем активность со всех вкладок
+        document.querySelectorAll('.game-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Показываем выбранную игру
+        const gameContainer = document.getElementById(`${gameType}-game`);
+        if (gameContainer) {
+            gameContainer.classList.add('active');
+        } else {
+            console.error(`❌ Контейнер игры ${gameType}-game не найден`);
+        }
+        
+        // Активируем соответствующую вкладку
+        // Находим кнопку по gameType
+        const tabButton = document.querySelector(`[onclick*="${gameType}"]`);
+        if (tabButton) {
+            tabButton.classList.add('active');
+        } else {
+            console.warn(`⚠️ Кнопка для игры ${gameType} не найдена`);
+        }
+        
+        currentGame = gameType;
+        
+        // Сбрасываем состояние игры
+        resetGameState();
+        
+        console.log(`✅ Игра ${gameType} активирована`);
+    } catch (error) {
+        console.error('❌ Ошибка в showGame:', error);
+    }
 }
 
 // ===== СБРОС СОСТОЯНИЯ ИГРЫ =====
 function resetGameState() {
-    // Сброс 21 очка
-    if (blackjackGame) {
-        blackjackGame = null;
-        document.getElementById('player-cards').innerHTML = '';
-        document.getElementById('dealer-cards').innerHTML = '';
-        document.getElementById('player-score').textContent = 'Очки: 0';
-        document.getElementById('dealer-score').textContent = 'Очки: 0';
-        document.getElementById('blackjack-actions').style.display = 'none';
-        document.getElementById('blackjack-result').innerHTML = '';
+    try {
+        // Сброс 21 очка
+        if (blackjackGame) {
+            blackjackGame = null;
+            const playerCards = document.getElementById('player-cards');
+            const dealerCards = document.getElementById('dealer-cards');
+            const playerScore = document.getElementById('player-score');
+            const dealerScore = document.getElementById('dealer-score');
+            const blackjackActions = document.getElementById('blackjack-actions');
+            const blackjackResult = document.getElementById('blackjack-result');
+            
+            if (playerCards) playerCards.innerHTML = '';
+            if (dealerCards) dealerCards.innerHTML = '';
+            if (playerScore) playerScore.textContent = 'Очки: 0';
+            if (dealerScore) dealerScore.textContent = 'Очки: 0';
+            if (blackjackActions) blackjackActions.style.display = 'none';
+            if (blackjackResult) blackjackResult.innerHTML = '';
+        }
+        
+        // Сброс костей
+        const diceResult = document.getElementById('dice-result');
+        const diceResultText = document.getElementById('dice-result-text');
+        if (diceResult) diceResult.textContent = '?';
+        if (diceResultText) diceResultText.innerHTML = '';
+        
+        // Сброс рулетки
+        const rouletteResult = document.getElementById('roulette-result');
+        const rouletteResultText = document.getElementById('roulette-result-text');
+        const selectedBet = document.getElementById('selected-bet');
+        const spinBtn = document.getElementById('spin-btn');
+        
+        if (rouletteResult) rouletteResult.textContent = '?';
+        if (rouletteResultText) rouletteResultText.innerHTML = '';
+        rouletteBetType = null;
+        rouletteBetNumber = null;
+        if (selectedBet) selectedBet.textContent = 'Выберите тип ставки';
+        if (spinBtn) spinBtn.disabled = true;
+        
+        // Сброс выбранных ставок в рулетке
+        document.querySelectorAll('.bet-type-btn').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        
+        console.log('✅ Состояние игры сброшено');
+    } catch (error) {
+        console.error('❌ Ошибка в resetGameState:', error);
     }
-    
-    // Сброс костей
-    document.getElementById('dice-result').textContent = '?';
-    document.getElementById('dice-result-text').innerHTML = '';
-    
-    // Сброс рулетки
-    document.getElementById('roulette-result').textContent = '?';
-    document.getElementById('roulette-result-text').innerHTML = '';
-    rouletteBetType = null;
-    rouletteBetNumber = null;
-    document.getElementById('selected-bet').textContent = 'Выберите тип ставки';
-    document.getElementById('spin-btn').disabled = true;
-    
-    // Сброс выбранных ставок в рулетке
-    document.querySelectorAll('.bet-type-btn').forEach(btn => {
-        btn.classList.remove('selected');
-    });
 }
 
 // ===== ИГРА 21 ОЧКО =====
@@ -370,28 +474,46 @@ class BlackjackGame {
 }
 
 function startBlackjack() {
-    const betInput = document.getElementById('blackjack-bet');
-    const bet = parseInt(betInput.value);
-    
-    if (!bet || bet < 1) {
-        showNotification('Введите корректную ставку', 'error');
-        return;
+    try {
+        const betInput = document.getElementById('blackjack-bet');
+        if (!betInput) {
+            console.error('❌ Элемент blackjack-bet не найден');
+            return;
+        }
+        
+        const bet = parseInt(betInput.value);
+        
+        if (!bet || bet < 1) {
+            showNotification('Введите корректную ставку', 'error');
+            return;
+        }
+        
+        if (!currentUser || (currentUser.balance || 0) < bet) {
+            showNotification('Недостаточно лупанчиков для ставки', 'error');
+            return;
+        }
+        
+        // Создаем новую игру
+        blackjackGame = new BlackjackGame(bet);
+        blackjackGame.start();
+        
+        // Показываем кнопки действий
+        const actionsElement = document.getElementById('blackjack-actions');
+        if (actionsElement) {
+            actionsElement.style.display = 'flex';
+        }
+        
+        // Очищаем предыдущий результат
+        const resultElement = document.getElementById('blackjack-result');
+        if (resultElement) {
+            resultElement.innerHTML = '';
+        }
+        
+        console.log('✅ Игра 21 очко начата');
+    } catch (error) {
+        console.error('❌ Ошибка в startBlackjack:', error);
+        showNotification('Ошибка при запуске игры', 'error');
     }
-    
-    if (!currentUser || (currentUser.balance || 0) < bet) {
-        showNotification('Недостаточно лупанчиков для ставки', 'error');
-        return;
-    }
-    
-    // Создаем новую игру
-    blackjackGame = new BlackjackGame(bet);
-    blackjackGame.start();
-    
-    // Показываем кнопки действий
-    document.getElementById('blackjack-actions').style.display = 'flex';
-    
-    // Очищаем предыдущий результат
-    document.getElementById('blackjack-result').innerHTML = '';
 }
 
 function hitCard() {
@@ -473,7 +595,11 @@ function selectRouletteBet(type) {
     });
     
     // Выделяем выбранную кнопку
-    event.target.classList.add('selected');
+    // Находим кнопку по типу ставки
+    const selectedButton = document.querySelector(`[onclick*="${type}"]`);
+    if (selectedButton) {
+        selectedButton.classList.add('selected');
+    }
     
     // Обновляем отображение выбранной ставки
     const selectedBetElement = document.getElementById('selected-bet');
@@ -634,7 +760,8 @@ function logout() {
     window.location.href = 'login.html';
 }
 
-// ===== ЭКСПОРТ ФУНКЦИЙ ДЛЯ ГЛОБАЛЬНОГО ДОСТУПА =====
+// ===== ПЕРЕОПРЕДЕЛЕНИЕ ФУНКЦИЙ В ГЛОБАЛЬНОЙ ОБЛАСТИ =====
+// Переопределяем временные заглушки реальными функциями
 window.showGame = showGame;
 window.startBlackjack = startBlackjack;
 window.hitCard = hitCard;
@@ -642,4 +769,6 @@ window.standGame = standGame;
 window.playDice = playDice;
 window.selectRouletteBet = selectRouletteBet;
 window.spinRoulette = spinRoulette;
-window.logout = logout; 
+window.logout = logout;
+
+console.log('🎮 Все функции мини-игр экспортированы в глобальную область'); 
