@@ -441,7 +441,17 @@ class DataSyncManager {
         
         for (const [updateId, updateInfo] of updates) {
             try {
-                await this.userRef.update(updateInfo.data);
+                // Специальная обработка для обновлений баланса
+                if (updateInfo.type === 'balance_update') {
+                    await this.userRef.update({
+                        balance: updateInfo.data.balance,
+                        lastBalanceUpdate: Date.now()
+                    });
+                } else {
+                    // Обычные обновления
+                    await this.userRef.update(updateInfo.data);
+                }
+                
                 this.pendingUpdates.delete(updateId);
                 console.log(`✅ Отложенное обновление ${updateId} синхронизировано`);
             } catch (error) {
@@ -675,6 +685,50 @@ class DataSyncManager {
         }
         
         return this.isReady();
+    }
+    
+    // ===== ОБНОВЛЕНИЕ БАЛАНСА =====
+    async updateUserBalance(newBalance) {
+        try {
+            if (!this.currentUser || !this.userRef) {
+                throw new Error('Пользователь не инициализирован');
+            }
+            
+            const oldBalance = this.currentUser.balance || 0;
+            const balanceDiff = newBalance - oldBalance;
+            
+            // Обновляем баланс в Firebase
+            await this.userRef.update({
+                balance: newBalance,
+                lastBalanceUpdate: Date.now()
+            });
+            
+            // Обновляем локальные данные
+            this.currentUser.balance = newBalance;
+            this.updateLocalStorage();
+            
+            console.log(`💰 Баланс обновлен: ${oldBalance} → ${newBalance} (${balanceDiff > 0 ? '+' : ''}${balanceDiff})`);
+            
+            // Уведомляем об изменении баланса
+            this.notifyDataChange('balance_updated', {
+                oldBalance: oldBalance,
+                newBalance: newBalance,
+                difference: balanceDiff
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('❌ Ошибка обновления баланса:', error);
+            
+            // Добавляем в отложенные обновления
+            this.addPendingUpdate({
+                type: 'balance_update',
+                data: { balance: newBalance },
+                timestamp: Date.now()
+            });
+            
+            throw error;
+        }
     }
 }
 
